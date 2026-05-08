@@ -1,0 +1,42 @@
+/* resources/js/index.css */
+
+/* Reset default browser margin/padding */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+/* Pastikan app full height */
+html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+/* Smooth scrolling */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Fix React root ambil full height Metronic */
+#root {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* Loading spinner global */
+.page-loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+/* Utility — hide scrollbar tapi tetap bisa scroll */
+.hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}
