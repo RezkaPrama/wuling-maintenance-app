@@ -1,4 +1,6 @@
 import axios from 'axios'
+import { store } from '../store/store'
+import { clearAuth } from '../store/slices/authSlice'
 
 const api = axios.create({
     baseURL: 'http://127.0.0.1:8000/api',
@@ -8,10 +10,10 @@ const api = axios.create({
     },
 })
 
-// Interceptor REQUEST — otomatis sisipkan token JWT di setiap request
 api.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('token')
+        // ✅ Gunakan key yang sama dengan authSlice
+        const token = localStorage.getItem('sanctum_token')
         if (token) {
             config.headers.Authorization = `Bearer ${token}`
         }
@@ -20,15 +22,13 @@ api.interceptors.request.use(
     (error) => Promise.reject(error)
 )
 
-// Interceptor RESPONSE — handle token expired (401)
 api.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
-            // Token expired atau tidak valid — hapus dan redirect ke login
-            localStorage.removeItem('token')
-            localStorage.removeItem('user')
-            window.location.href = '/login'
+            // ✅ Dispatch Redux action, bukan window.location
+            // Ini trigger PrivateRoute untuk redirect via React Router
+            store.dispatch(clearAuth())
         }
         return Promise.reject(error)
     }

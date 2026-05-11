@@ -1,14 +1,13 @@
 import React, { useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, useLocation } from 'react-router-dom'
-import { Provider, useDispatch } from 'react-redux'
-import store from './store/store'          // ✅ default import, hapus kurung kurawal
+import { Provider, useDispatch, useSelector } from 'react-redux'
+import store from './store/store'
 import AppRoutes from './routes/AppRoutes'
-import { fetchCurrentUser } from './store/slices/authSlice' // ✅ pastikan import action creator untuk restore session
+import { fetchCurrentUser, selectCurrentUser } from './store/slices/authSlice'
 import axios from 'axios'
 import './index.css'
 
-// Setup axios global
 axios.defaults.headers.common['Accept'] = 'application/json'
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest'
 
@@ -17,50 +16,77 @@ if (csrfToken) {
     axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfToken
 }
 
-// Auto redirect ke /login kalau token expired (401)
-axios.interceptors.response.use(
-    (response) => response,
-    (error) => {
-        if (error.response?.status === 401) {
-            localStorage.removeItem('sanctum_token')
-            delete axios.defaults.headers.common['Authorization']
-            window.location.href = '/login'
-        }
-        return Promise.reject(error)
-    }
-)
+// ✅ Helper — tutup aside drawer via semua cara yang tersedia
+function closeAsideDrawer() {
+    const body    = document.body
+    const aside   = document.querySelector('#kt_aside')
+    const overlay = document.querySelector('.drawer-overlay')
 
-// Reinit Metronic + restore session setiap route berubah
+    // Cara 1: pakai KTDrawer instance
+    if (aside && window.KTDrawer) {
+        try {
+            const instance = window.KTDrawer.getInstance(aside)
+            if (instance) {
+                instance.hide()
+                return
+            }
+        } catch (_) {}
+    }
+
+    // Cara 2: manipulasi class langsung (fallback paling reliable)
+    if (aside) {
+        aside.classList.remove('drawer-on')
+    }
+    if (overlay) {
+        overlay.remove()
+    }
+    // Hapus class drawer-on dari body kalau ada
+    body.classList.remove('drawer-on')
+    // Kembalikan overflow body
+    body.style.overflow = ''
+}
+
 function AppInner() {
     const location = useLocation()
     const dispatch = useDispatch()
+    const user     = useSelector(selectCurrentUser)
 
-    // Restore session saat pertama load
+    // Restore session sekali saat mount
     useEffect(() => {
-        const token = localStorage.getItem('sanctum_token')
-        if (token) {
-            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+        const savedToken = localStorage.getItem('sanctum_token')
+        if (savedToken && !user) {
+            axios.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`
             dispatch(fetchCurrentUser())
         }
-    }, []) // hanya sekali saat mount
+    }, [])
 
-    // Reinit Metronic setiap pindah halaman
+    // Setiap navigasi: tutup drawer DULU, baru reinit Metronic
     useEffect(() => {
-        if (window.KTComponents) window.KTComponents.init()
-    }, [location])
+        // 1. Tutup drawer mobile
+        closeAsideDrawer()
+
+        // 2. Reinit Metronic (pakai setTimeout agar DOM sudah render)
+        const timer = setTimeout(() => {
+            if (window.KTComponents) window.KTComponents.init()
+        }, 100)
+
+        return () => clearTimeout(timer)
+    }, [location.pathname]) // ← pakai pathname, bukan seluruh object location
 
     return null
 }
 
-const rootElement = document.getElementById('root')
+const container = document.getElementById('root')
 
-if (rootElement && !rootElement._reactRootContainer) {
-    ReactDOM.createRoot(rootElement).render(
-        <Provider store={store}>
-            <BrowserRouter>
-                <AppInner />
-                <AppRoutes />
-            </BrowserRouter>
-        </Provider>
-    )
+if (!container._reactRoot) {
+    container._reactRoot = ReactDOM.createRoot(container)
 }
+
+container._reactRoot.render(
+    <Provider store={store}>
+        <BrowserRouter>
+            <AppInner />
+            <AppRoutes />
+        </BrowserRouter>
+    </Provider>
+)

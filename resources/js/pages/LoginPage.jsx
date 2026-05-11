@@ -26,7 +26,7 @@ const LoginPage = () => {
     // Redirect jika sudah login
     useEffect(() => {
         if (isAuthenticated) {
-            navigate('/dashboard');
+            navigate('/');
         }
     }, [isAuthenticated, navigate]);
 
@@ -51,7 +51,7 @@ const LoginPage = () => {
         }));
 
         if (loginUser.fulfilled.match(result)) {
-            navigate('/dashboard');
+            navigate('/');
         }
     };
 

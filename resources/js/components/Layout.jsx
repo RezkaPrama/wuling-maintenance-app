@@ -10,7 +10,7 @@ export default function Layout({ children }) {
 
   return (
     <div className="d-flex flex-column flex-root">
-      <div className="page d-flex flex-row flex-column-fluid">
+			<div className="page d-flex flex-row flex-column-fluid">
 
         <Sidebar />
 
@@ -27,17 +27,22 @@ export default function Layout({ children }) {
           </div>
 
           {/* Footer */}
-          <div className="footer py-4 d-flex flex-lg-column" id="kt_footer">
+          <div className="footer py-4 d-flex flex-lg-column shadow-sm" id="kt_footer">
             <div className="container-fluid d-flex flex-column flex-md-row align-items-center justify-content-between">
               <div className="text-dark order-2 order-md-1">
-                <span className="text-muted fw-bold me-1">2024©</span>
-                <span className="text-gray-800 fw-bold">Wuling Maintenance</span>
+                <span className="text-muted fw-bold me-1">2026©</span>
+                <a href="https://wuling.com" target="_blank" className="text-gray-800 text-hover-primary">Wuling Maintenance</a>
               </div>
-            </div>
+              <ul className="menu menu-gray-600 menu-hover-primary fw-bold order-1">
+                <li className="menu-item">
+                  <a href="https://drive.google.com/file/d/1U1EdyHZdnsEs9E8dwH2ftKaHO-Sb5maG/view?usp=drive_link" target="_blank" className="menu-link px-2">Download Mobile Apps CBB</a>
+                </li>
+            </ul>
           </div>
         </div>
-
       </div>
+
     </div>
+    </div >
   )
 }
