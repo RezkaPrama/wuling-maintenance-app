@@ -165,6 +165,42 @@ class MaintenanceRecordWebController extends Controller
         ));
     }
 
+    public function createFromQr(Request $request)
+    {
+        $equipmentId = $request->input('equipment_id');
+
+        $equipment = DB::table('equipment')->where('id', $equipmentId)->first();
+
+        if (!$equipment || $equipment->status === 'inactive') {
+            return redirect()->route('admin.records.create')
+                ->with('error', 'Equipment tidak ditemukan atau tidak aktif.');
+        }
+
+        // Jadwal due/overdue untuk equipment ini saja
+        // Sertakan template_id supaya bisa langsung disimpan tanpa step konfirmasi
+        $schedules = DB::table('maintenance_schedules as ms')
+            ->leftJoin('check_sheet_templates as ct', function ($join) {
+                $join->on('ct.equipment_id', '=', 'ms.equipment_id')
+                    ->whereColumn('ct.pm_cycle', 'ms.pm_cycle')
+                    ->where('ct.is_active', 1);
+            })
+            ->select(
+                'ms.id',
+                'ms.pm_cycle',
+                'ms.next_maintenance',
+                'ms.last_maintenance',
+                'ms.status',
+                'ct.id as template_id',
+            )
+            ->where('ms.equipment_id', $equipmentId)
+            ->whereIn('ms.status', ['due', 'overdue'])
+            ->orderByRaw("CASE ms.status WHEN 'overdue' THEN 1 WHEN 'due' THEN 2 END")
+            ->orderBy('ms.next_maintenance', 'asc')
+            ->get();
+
+        return view('admin.maintenance.qr_landing', compact('equipment', 'schedules'));
+    }
+
     // ============================================================
     // STORE — Simpan record baru
     // ============================================================

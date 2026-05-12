@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\CheckSheet\CheckSheetTemplateController;
 use App\Http\Controllers\Admin\Dashboard\DashboardController;
 use App\Http\Controllers\Admin\Equipment\EquipmentController;
 use App\Http\Controllers\Admin\Record\MaintenanceRecordWebController;
@@ -64,11 +65,30 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth']], function () {
         Route::get('/{id}/edit',     [EquipmentController::class, 'edit'])->name('edit');
         Route::put('/{id}',          [EquipmentController::class, 'update'])->name('update');
         Route::delete('/{id}',       [EquipmentController::class, 'destroy'])->name('destroy');
- 
+
         // ── QR Code download ────────────────────────────────────────────────
         // GET /admin/equipment/{id}/qr  → download QR code sebagai PNG/SVG
         Route::get('/{id}/qr',       [EquipmentController::class, 'downloadQr'])->name('qr');
     });
+
+    // -----------------------------------------------------------------------------------------------------------------------
+    // Check Sheet Template
+    // -----------------------------------------------------------------------------------------------------------------------
+
+    Route::prefix('admin/check-sheet')->name('admin.check-sheet.')->middleware(['auth'])->group(function () {
+
+        Route::prefix('templates')->name('template.')->group(function () {
+            Route::get('/',              [CheckSheetTemplateController::class, 'index'])->name('index');
+            Route::get('/create',        [CheckSheetTemplateController::class, 'create'])->name('create');
+            Route::post('/',             [CheckSheetTemplateController::class, 'store'])->name('store');
+            Route::get('/{id}',          [CheckSheetTemplateController::class, 'show'])->name('show');
+            Route::get('/{id}/edit',     [CheckSheetTemplateController::class, 'edit'])->name('edit');
+            Route::put('/{id}',          [CheckSheetTemplateController::class, 'update'])->name('update');
+            Route::patch('/{id}/toggle', [CheckSheetTemplateController::class, 'toggleActive'])->name('toggle');
+            Route::delete('/{id}',       [CheckSheetTemplateController::class, 'destroy'])->name('destroy');
+        });
+    });
+
 
     // -----------------------------------------------------------------------------------------------------------------------
     // Jadwal PM
@@ -89,6 +109,7 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth']], function () {
     Route::prefix('records')->name('admin.records.')->group(function () {
         Route::get('/',                              [MaintenanceRecordWebController::class, 'index'])->name('index');
         Route::get('/create',                        [MaintenanceRecordWebController::class, 'create'])->name('create');
+        Route::get('/from-qr',                       [MaintenanceRecordWebController::class, 'createFromQr'])->name('from-qr');
         Route::post('/',                             [MaintenanceRecordWebController::class, 'store'])->name('store');
         Route::get('/{id}',                         [MaintenanceRecordWebController::class, 'show'])->name('show');
         Route::get('/{id}/work',                    [MaintenanceRecordWebController::class, 'work'])->name('work');

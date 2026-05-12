@@ -1174,7 +1174,7 @@
     <script>
         const RECORD_ID = {{ $record->id }};
         const CSRF = '{{ csrf_token() }}';
-        const BASE_URL = '{{ url('/admin/maintenance/records') }}';
+        const BASE_URL = '{{ url('/admin/records') }}';
         const debounce = {};
 
         // ── Set Status ────────────────────────────────────────────

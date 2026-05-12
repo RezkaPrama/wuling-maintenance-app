@@ -30,6 +30,9 @@
                     <a href="{{ route('admin.records.create') }}" class="btn btn-primary">
                         <i class="bi bi-plus-circle me-2"></i>Buat Record PM
                     </a>
+                    {{-- <a href="{{ route('admin.records.from-qr') }}" class="btn btn-primary">
+                        <i class="bi bi-qr-code me-2"></i>Scan QR & Buat Record
+                    </a> --}}
                 </div>
 
                 @if (session('success'))
@@ -239,7 +242,7 @@
                                                     @endif
                                                 </td>
                                                 <td class="text-muted fs-7">
-                                                    {{ $duration ?? ($r->status === 'in_progress' ? '<span class="text-warning">Running...</span>' : '—') }}
+                                                    {{ $duration ?? ($r->status === 'in_progress' ? '<span class="badge">Running...</span>' : '—') }}
                                                 </td>
                                                 <td class="text-end pe-4">
                                                     <div class="d-flex justify-content-end gap-2">
