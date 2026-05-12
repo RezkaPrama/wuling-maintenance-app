@@ -49,9 +49,9 @@ class MaintenanceRecordWebController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('mr.record_number', 'LIKE', "%{$search}%")
-                  ->orWhere('e.equipment_name', 'LIKE', "%{$search}%")
-                  ->orWhere('e.equipment_code', 'LIKE', "%{$search}%")
-                  ->orWhere('tech.name', 'LIKE', "%{$search}%");
+                    ->orWhere('e.equipment_name', 'LIKE', "%{$search}%")
+                    ->orWhere('e.equipment_code', 'LIKE', "%{$search}%")
+                    ->orWhere('tech.name', 'LIKE', "%{$search}%");
             });
         }
 
@@ -66,7 +66,7 @@ class MaintenanceRecordWebController extends Controller
         if ($filterMonth) {
             [$y, $m] = explode('-', $filterMonth);
             $query->whereYear('mr.maintenance_date', $y)
-                  ->whereMonth('mr.maintenance_date', $m);
+                ->whereMonth('mr.maintenance_date', $m);
         }
 
         $query->orderByRaw("CASE mr.status
@@ -75,7 +75,7 @@ class MaintenanceRecordWebController extends Controller
                 WHEN 'validated'   THEN 3
                 WHEN 'rejected'    THEN 4
                 ELSE 5 END")
-              ->orderBy('mr.maintenance_date', 'desc');
+            ->orderBy('mr.maintenance_date', 'desc');
 
         $records = $query->paginate($perPage)->appends([
             'search'        => $search,
@@ -143,8 +143,14 @@ class MaintenanceRecordWebController extends Controller
         // List schedule yang due/overdue (untuk dropdown pilih jadwal)
         $dueSchedules = DB::table('maintenance_schedules as ms')
             ->join('equipment as e', 'ms.equipment_id', '=', 'e.id')
-            ->select('ms.id', 'ms.pm_cycle', 'ms.next_maintenance', 'ms.status',
-                     'e.equipment_code', 'e.equipment_name')
+            ->select(
+                'ms.id',
+                'ms.pm_cycle',
+                'ms.next_maintenance',
+                'ms.status',
+                'e.equipment_code',
+                'e.equipment_name'
+            )
             ->whereIn('ms.status', ['due', 'overdue'])
             ->orderByRaw("CASE ms.status WHEN 'overdue' THEN 1 WHEN 'due' THEN 2 ELSE 3 END")
             ->orderBy('ms.next_maintenance')
@@ -178,8 +184,8 @@ class MaintenanceRecordWebController extends Controller
         // Generate record number: PM-YYYYMMDD-XXXX
         $dateStr = now()->format('Ymd');
         $count   = DB::table('maintenance_records')
-                       ->whereDate('created_at', now()->toDateString())
-                       ->count() + 1;
+            ->whereDate('created_at', now()->toDateString())
+            ->count() + 1;
         $recordNumber = 'PM-' . $dateStr . '-' . str_pad($count, 4, '0', STR_PAD_LEFT);
 
         DB::beginTransaction();
@@ -226,7 +232,6 @@ class MaintenanceRecordWebController extends Controller
 
             return redirect()->route('admin.maintenance.work', $recordId)
                 ->with('success', "Record {$recordNumber} berhasil dibuat. Silakan isi check sheet.");
-
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Gagal membuat record: ' . $e->getMessage())->withInput();
@@ -351,6 +356,8 @@ class MaintenanceRecordWebController extends Controller
             'measurements'    => 'nullable|array',
             'requires_action' => 'nullable|boolean',
             'action_required' => 'nullable|string|max:500',
+            'actual_man_power'     => 'nullable|integer|min:1|max:99',
+            'actual_time_minutes'  => 'nullable|integer|min:1|max:9999',
         ]);
 
         // Pastikan item milik record ini
@@ -371,17 +378,28 @@ class MaintenanceRecordWebController extends Controller
                 'measurements'    => $request->measurements ? json_encode($request->measurements) : null,
                 'requires_action' => $request->boolean('requires_action'),
                 'action_required' => $request->action_required,
+                'actual_man_power'    => $request->actual_man_power,
+                'actual_time_minutes' => $request->actual_time_minutes,
                 'updated_at'      => now(),
             ]);
 
         // Hitung ulang progress
-        $items    = DB::table('maintenance_record_items')->where('maintenance_record_id', $recordId)->get();
-        $progress = $this->calculateProgressRaw($items);
+        // $items    = DB::table('maintenance_record_items')->where('maintenance_record_id', $recordId)->get();
+        // $progress = $this->calculateProgressRaw($items);
+
+        // Hitung ulang progress
+        $items    = DB::table('maintenance_record_items')
+            ->where('maintenance_record_id', $recordId)
+            ->get();
+        $total    = $items->count();
+        $done     = $items->whereIn('status', ['ok', 'ng', 'na'])->count();
+        $percent  = $total > 0 ? round(($done / $total) * 100) : 0;
 
         return response()->json([
             'success'  => true,
             'message'  => 'Item berhasil disimpan.',
-            'progress' => $progress,
+            // 'progress' => $progress,
+            'progress' => compact('total', 'done', 'percent'),
         ]);
     }
 
@@ -416,7 +434,7 @@ class MaintenanceRecordWebController extends Controller
         $photos[] = [
             'path'       => $path,
             'url'        => Storage::url($path),
-            'uploaded_at'=> now()->toDateTimeString(),
+            'uploaded_at' => now()->toDateTimeString(),
         ];
 
         DB::table('maintenance_record_items')

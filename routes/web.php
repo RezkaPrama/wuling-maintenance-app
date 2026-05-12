@@ -50,9 +50,24 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth']], function () {
     // -----------------------------------------------------------------------------------------------------------------------
 
     // web.php
+    // Route::prefix('equipment')->name('admin.equipment.')->group(function () {
+    //     Route::get('/',    [EquipmentController::class, 'index'])->name('index');
+    //     Route::get('/{id}', [EquipmentController::class, 'show'])->name('show');
+    // });
+
+    // ── Equipment CRUD ──────────────────────────────────────────────────────
     Route::prefix('equipment')->name('admin.equipment.')->group(function () {
-        Route::get('/',    [EquipmentController::class, 'index'])->name('index');
-        Route::get('/{id}', [EquipmentController::class, 'show'])->name('show');
+        Route::get('/',              [EquipmentController::class, 'index'])->name('index');
+        Route::get('/create',        [EquipmentController::class, 'create'])->name('create');
+        Route::post('/',             [EquipmentController::class, 'store'])->name('store');
+        Route::get('/{id}',          [EquipmentController::class, 'show'])->name('show');
+        Route::get('/{id}/edit',     [EquipmentController::class, 'edit'])->name('edit');
+        Route::put('/{id}',          [EquipmentController::class, 'update'])->name('update');
+        Route::delete('/{id}',       [EquipmentController::class, 'destroy'])->name('destroy');
+ 
+        // ── QR Code download ────────────────────────────────────────────────
+        // GET /admin/equipment/{id}/qr  → download QR code sebagai PNG/SVG
+        Route::get('/{id}/qr',       [EquipmentController::class, 'downloadQr'])->name('qr');
     });
 
     // -----------------------------------------------------------------------------------------------------------------------

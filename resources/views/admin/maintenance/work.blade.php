@@ -3,652 +3,1060 @@
 
 @section('title', 'Pengerjaan PM — ' . $record->record_number)
 
-@section('subtitle')
-    List Jadwal Preventive Maintenance Record
-@endsection
-@section('menuUtama')
-    Menu Utama
-@endsection
-@section('menuItem')
-    Maintenance Record
-@endsection
-
 @push('styles')
-    <style>
-        /* ── Sticky header progress ── */
-        .work-sticky-bar {
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            background: #fff;
-            border-bottom: 2px solid #eff2f5;
-            padding: 12px 24px;
-            margin: -24px -24px 24px -24px;
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, .06);
-        }
+<style>
+/* ══════════════════════════════════════════
+   STICKY PROGRESS BAR
+══════════════════════════════════════════ */
+.work-sticky-bar {
+    position: sticky; top: 0; z-index: 200;
+    background: #fff;
+    border-bottom: 2px solid #eff2f5;
+    padding: 10px 0;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.07);
+}
+.progress-track {
+    height: 6px; border-radius: 999px;
+    background: #eff2f5; overflow: hidden; flex: 1;
+}
+.progress-fill {
+    height: 100%; border-radius: 999px;
+    background: linear-gradient(90deg,#50cd89,#00b272);
+    transition: width .5s ease;
+}
 
-        /* ── Check item card ── */
-        .check-item-card {
-            border: 2px solid #eff2f5;
-            border-radius: 10px;
-            margin-bottom: 12px;
-            transition: all .2s ease;
-            background: #fff;
-        }
+/* ══════════════════════════════════════════
+   CHECK SHEET HEADER
+══════════════════════════════════════════ */
+.cs-header {
+    border: 2px solid #181c32;
+    border-radius: 8px 8px 0 0;
+    overflow: hidden;
+    background: #fff;
+}
+.cs-header-top {
+    background: #1e3a5f; color: #fff;
+    padding: 10px 16px;
+    display: flex; justify-content: space-between; align-items: center;
+}
+.cs-header-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    border-top: 1px solid #dee2e6;
+}
+.cs-header-cell {
+    padding: 6px 12px;
+    border-right: 1px solid #dee2e6;
+    font-size: .78rem;
+}
+.cs-header-cell:last-child { border-right: none; }
+.cs-header-cell .lbl  { color: #6c757d; font-weight: 600; font-size: .7rem; }
+.cs-header-cell .val  { color: #181c32; font-weight: 700; margin-top: 1px; }
 
-        .check-item-card:hover {
-            border-color: #d1d5db;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, .08);
-        }
+/* ══════════════════════════════════════════
+   TABEL CHECK SHEET
+══════════════════════════════════════════ */
+.cs-table-wrap {
+    overflow-x: auto;
+    border: 2px solid #181c32;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+}
+.cs-table {
+    width: 100%; border-collapse: collapse;
+    font-size: .78rem; min-width: 1060px;
+}
+.cs-table th {
+    background: #1e3a5f; color: #fff;
+    padding: 6px 8px; text-align: center;
+    vertical-align: middle;
+    border: 1px solid #2d5186;
+    font-size: .68rem; font-weight: 600;
+    white-space: nowrap;
+}
+.cs-table th.th-left { text-align: left; }
+.cs-table td {
+    padding: 5px 8px; vertical-align: middle;
+    border: 1px solid #dee2e6;
+    font-size: .78rem; color: #181c32;
+}
 
-        .check-item-card.status-ok {
-            border-left: 4px solid #50cd89;
-        }
+/* Sub-equipment section row */
+.cs-table tr.sub-eq-row td {
+    background: #eef2ff; font-weight: 700;
+    color: #3f51b5; font-size: .75rem;
+    padding: 5px 12px;
+    border-top: 2px solid #c5cae9;
+}
 
-        .check-item-card.status-ng {
-            border-left: 4px solid #f1416c;
-        }
+/* Row states */
+.cs-table tr.item-row { transition: background .12s; }
+.cs-table tr.item-row:hover { background: #f0f4ff; }
+.cs-table tr.item-row.st-ok { background: #f0fff6; }
+.cs-table tr.item-row.st-ok td { border-left-color: #50cd89; }
+.cs-table tr.item-row.st-ok td:first-child { border-left: 3px solid #50cd89; }
+.cs-table tr.item-row.st-ng { background: #fff5f7; }
+.cs-table tr.item-row.st-ng td:first-child { border-left: 3px solid #f1416c; }
+.cs-table tr.item-row.st-na { background: #f9f9f9; }
+.cs-table tr.item-row.st-na td:first-child { border-left: 3px solid #b5b5c3; }
 
-        .check-item-card.status-na {
-            border-left: 4px solid #7e8299;
-        }
+/* PM Type cells */
+.pm-dot { font-size: 1rem; color: #1e3a5f; text-align: center; display: block; }
 
-        .check-item-card.status-pending {
-            border-left: 4px solid #e4e6ef;
-        }
+/* Status result buttons */
+.result-cell { text-align: center; }
+.result-btn-group { display: flex; gap: 3px; justify-content: center; }
+.result-btn {
+    width: 30px; height: 26px; border-radius: 5px;
+    border: 1.5px solid #dee2e6; background: #fff;
+    cursor: pointer; font-size: .65rem; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .15s; white-space: nowrap;
+}
+.result-btn:hover { transform: scale(1.1); }
+.result-btn.r-ok  { border-color: #50cd89; color: #50cd89; }
+.result-btn.r-ng  { border-color: #f1416c; color: #f1416c; }
+.result-btn.r-na  { border-color: #b5b5c3; color: #b5b5c3; }
+.result-btn.r-ok.active { background: #50cd89; color: #fff; border-color: #50cd89; box-shadow: 0 2px 6px rgba(80,205,137,.4); }
+.result-btn.r-ng.active { background: #f1416c; color: #fff; border-color: #f1416c; box-shadow: 0 2px 6px rgba(241,65,108,.4); }
+.result-btn.r-na.active { background: #b5b5c3; color: #fff; border-color: #b5b5c3; }
 
-        /* ── Status buttons ── */
-        .status-btn-group .btn {
-            min-width: 60px;
-            font-size: .78rem;
-            font-weight: 600;
-            border-radius: 6px;
-        }
+/* ── Man Power / Time: plan vs aktual ── */
+.worktime-cell {
+    min-width: 90px; padding: 4px 6px !important;
+}
+.plan-label {
+    font-size: .62rem; color: #a1a5b7; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .03em;
+    line-height: 1; display: block; margin-bottom: 2px;
+}
+.plan-val {
+    font-size: .75rem; color: #5e6278; font-weight: 700;
+    display: block; margin-bottom: 4px;
+}
+.actual-input {
+    width: 100%; border: 1px solid #e4e6ef;
+    border-radius: 4px; padding: 2px 5px;
+    font-size: .75rem; font-weight: 700;
+    color: #181c32; background: #f8f9ff;
+    text-align: center; outline: none;
+    transition: border-color .15s;
+}
+.actual-input:focus { border-color: #6366f1; background: #fff; }
+.actual-input.changed { border-color: #50cd89; background: #f0fff6; }
+.actual-tag {
+    font-size: .6rem; color: #a1a5b7; display: block;
+    text-align: center; margin-top: 1px;
+}
 
-        .status-btn-group .btn.active-ok {
-            background: #50cd89;
-            color: #fff;
-            border-color: #50cd89;
-        }
+/* Inline inputs */
+.remarks-inline {
+    border: none; background: transparent;
+    width: 100%; font-size: .73rem; color: #444;
+    outline: none; padding: 2px 0;
+    border-bottom: 1px dashed #dee2e6;
+}
+.remarks-inline:focus { border-bottom-color: #6366f1; background: #f8f9ff; padding: 2px 4px; }
 
-        .status-btn-group .btn.active-ng {
-            background: #f1416c;
-            color: #fff;
-            border-color: #f1416c;
-        }
+.meas-inline {
+    border: 1px solid #e4e6ef; border-radius: 4px;
+    background: #f8f9ff; width: 100%;
+    font-size: .73rem; padding: 2px 5px; outline: none;
+    text-align: center;
+}
+.meas-inline:focus { border-color: #6366f1; background: #fff; }
 
-        .status-btn-group .btn.active-na {
-            background: #7e8299;
-            color: #fff;
-            border-color: #7e8299;
-        }
+/* Photo button */
+.photo-btn {
+    border: 1.5px dashed #b5b5c3; border-radius: 4px;
+    background: transparent; padding: 2px 7px;
+    font-size: .65rem; cursor: pointer;
+    color: #6c757d; transition: all .2s; display: inline-block;
+}
+.photo-btn:hover { border-color: #6366f1; color: #6366f1; background: #f0f0ff; }
+.photo-count { font-size: .65rem; color: #6366f1; font-weight: 700; cursor: pointer; }
 
-        /* ── Sub-equipment section ── */
-        .sub-equipment-header {
-            background: linear-gradient(135deg, #f5f8ff 0%, #eef2ff 100%);
-            border-radius: 8px;
-            padding: 10px 16px;
-            margin-bottom: 12px;
-            border-left: 4px solid #6366f1;
-        }
+/* Action toggle */
+.action-toggle {
+    width: 24px; height: 24px; border-radius: 4px;
+    border: 1.5px solid #ffc107; background: transparent;
+    cursor: pointer; font-size: .6rem; color: #ffc107;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: all .15s;
+}
+.action-toggle.active { background: #ffc107; color: #fff; }
 
-        /* ── Photo thumbnails ── */
-        .photo-thumb {
-            width: 64px;
-            height: 64px;
-            object-fit: cover;
-            border-radius: 6px;
-            cursor: pointer;
-            border: 2px solid #eff2f5;
-            transition: border-color .2s;
-        }
+/* Expand row */
+.expand-row td { background: #fffef0 !important; padding: 8px 14px !important; border-top: none !important; }
+.expand-row { display: none; }
+.expand-row.show { display: table-row; }
 
-        .photo-thumb:hover {
-            border-color: #6366f1;
-        }
+/* Save pill */
+.save-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 999px;
+    font-size: .72rem; font-weight: 600;
+}
+.save-pill.saving { background: #fff4de; color: #d07800; }
+.save-pill.saved  { background: #e8fff3; color: #17773e; }
+.save-pill.err    { background: #ffeef3; color: #d9214e; }
 
-        /* ── Progress bar ── */
-        .progress-work {
-            height: 8px;
-            border-radius: 999px;
-            overflow: hidden;
-            background: #f5f8fa;
-        }
-
-        .progress-work .progress-bar {
-            border-radius: 999px;
-            transition: width .5s ease;
-        }
-
-        /* ── Saving indicator ── */
-        .save-indicator {
-            font-size: .75rem;
-        }
-
-        .save-indicator.saving {
-            color: #f6a723;
-        }
-
-        .save-indicator.saved {
-            color: #50cd89;
-        }
-
-        .save-indicator.error {
-            color: #f1416c;
-        }
-
-        /* ── Item number badge ── */
-        .item-num-badge {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            background: #f5f8fa;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: .75rem;
-            font-weight: 700;
-            color: #5e6278;
-            flex-shrink: 0;
-        }
-    </style>
+/* Legend */
+.legend-dot {
+    width: 10px; height: 10px; border-radius: 2px;
+    display: inline-block; margin-right: 4px;
+}
+</style>
 @endpush
 
 @section('content')
 
-    <div class="content d-flex flex-column flex-column-fluid" id="kt_content">
-
-        @include('partials.toolbar')
-
-        <div class="post d-flex flex-column-fluid" id="kt_post">
-            <div id="kt_content_container" class="container-xxl">
-                {{-- ── STICKY PROGRESS BAR ── --}}
-                <div class="work-sticky-bar" id="stickyBar">
-                    <div class="d-flex align-items-center gap-3 flex-grow-1">
-                        <div>
-                            <div class="fw-bold text-gray-800 fs-6">{{ $record->record_number }}</div>
-                            <div class="text-muted fs-8">{{ $record->equipment_name }} · {{ $record->pm_cycle }}</div>
-                        </div>
-                        <div class="flex-grow-1 d-none d-md-block">
-                            <div class="d-flex justify-content-between fs-8 text-muted mb-1">
-                                <span>Progress</span>
-                                <span id="progressText">{{ $progress['done'] }}/{{ $progress['total'] }} item</span>
-                            </div>
-                            <div class="progress-work">
-                                <div class="progress-bar bg-success" id="progressBar"
-                                    style="width: {{ $progress['percent'] }}%"></div>
-                            </div>
-                        </div>
-                        <div class="d-flex align-items-center gap-2 ms-auto">
-                            <span class="save-indicator" id="saveIndicator"></span>
-                            <span class="badge badge-light-success fs-8" id="progressPercent">
-                                {{ $progress['percent'] }}%
-                            </span>
-                        </div>
-                    </div>
-                    <div class="d-flex gap-2">
-                        <a href="{{ route('admin.records.show', $record->id) }}" class="btn btn-sm btn-light">
-                            <i class="bi bi-eye me-1"></i>Preview
-                        </a>
-                        <button type="button" class="btn btn-sm btn-primary" id="btnComplete"
-                            {{ $progress['percent'] < 100 ? 'disabled' : '' }} onclick="submitComplete()">
-                            <i class="bi bi-check-circle me-1"></i>Selesaikan PM
-                        </button>
-                    </div>
+{{-- ══════════════════════════════════════════════
+     STICKY BAR
+══════════════════════════════════════════════ --}}
+<div class="work-sticky-bar">
+    <div class="container-fluid">
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+            <div class="d-flex align-items-center gap-2">
+                <a href="{{ route('admin.records.index') }}" class="btn btn-sm btn-light">
+                    <i class="bi bi-arrow-left"></i>
+                </a>
+                <div>
+                    <div class="fw-bold text-gray-800 fs-7 lh-1">{{ $record->record_number }}</div>
+                    <div class="text-muted fs-8">{{ $record->equipment_name }} · {{ $record->pm_cycle }}</div>
                 </div>
+            </div>
 
-                {{-- ── RECORD INFO ── --}}
-                <div class="row g-4 mb-5">
-                    <div class="col-md-8">
-                        <div class="card card-flush border-0 shadow-sm">
-                            <div class="card-body py-4 px-5">
-                                <div class="row g-3">
-                                    <div class="col-sm-4">
-                                        <div class="text-muted fs-8 mb-1">Equipment</div>
-                                        <div class="fw-bold">{{ $record->equipment_name }}</div>
-                                        <div class="text-muted fs-8">{{ $record->equipment_code }}</div>
-                                    </div>
-                                    <div class="col-sm-3">
-                                        <div class="text-muted fs-8 mb-1">Template</div>
-                                        <div class="fw-semibold">{{ $record->template_name }}</div>
-                                        <span class="badge badge-light-primary">{{ $record->pm_cycle }}</span>
-                                    </div>
-                                    <div class="col-sm-2">
-                                        <div class="text-muted fs-8 mb-1">Tanggal</div>
-                                        <div class="fw-semibold">
-                                            {{ \Carbon\Carbon::parse($record->maintenance_date)->format('d M Y') }}
-                                        </div>
-                                    </div>
-                                    <div class="col-sm-3">
-                                        <div class="text-muted fs-8 mb-1">Teknisi</div>
-                                        <div class="fw-semibold">{{ $record->technician_name }}</div>
-                                        <div class="text-muted fs-8">Mulai: {{ $record->start_time }}</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card card-flush border-0 shadow-sm h-100">
-                            <div class="card-body py-4 px-5 d-flex flex-column justify-content-center">
-                                <div class="row g-2 text-center">
-                                    <div class="col-4">
-                                        <div class="fs-3 fw-bold text-success" id="statOk">{{ $progress['ok'] }}</div>
-                                        <div class="text-muted fs-8">OK</div>
-                                    </div>
-                                    <div class="col-4">
-                                        <div class="fs-3 fw-bold text-danger" id="statNg">{{ $progress['ng'] }}</div>
-                                        <div class="text-muted fs-8">NG</div>
-                                    </div>
-                                    <div class="col-4">
-                                        <div class="fs-3 fw-bold text-muted" id="statPending">{{ $progress['pending'] }}
-                                        </div>
-                                        <div class="text-muted fs-8">Pending</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+            <div class="d-flex align-items-center gap-2 flex-grow-1" style="max-width:300px">
+                <div class="progress-track">
+                    <div class="progress-fill" id="progressBar" style="width:{{ $progress['percent'] }}%"></div>
                 </div>
+                <span class="text-muted fs-8 text-nowrap" id="progressText">
+                    {{ $progress['done'] }}/{{ $progress['total'] }}
+                </span>
+            </div>
 
-                @if (session('info'))
-                    <div class="alert alert-info d-flex align-items-center mb-5">
-                        <i class="bi bi-info-circle me-3 fs-4"></i>
-                        <div>{{ session('info') }}</div>
-                    </div>
+            {{-- Stats --}}
+            <div class="d-none d-md-flex align-items-center gap-3">
+                <span class="fs-8">
+                    <span class="fw-bold text-success" id="statOk">{{ $progress['ok'] }}</span>
+                    <span class="text-muted"> OK</span>
+                </span>
+                <span class="fs-8">
+                    <span class="fw-bold text-danger" id="statNg">{{ $progress['ng'] }}</span>
+                    <span class="text-muted"> NG</span>
+                </span>
+                <span class="fs-8">
+                    <span class="fw-bold text-muted" id="statPending">{{ $progress['pending'] }}</span>
+                    <span class="text-muted"> Pending</span>
+                </span>
+            </div>
+
+            <div id="saveIndicator"></div>
+
+            <div class="ms-auto d-flex gap-2 align-items-center">
+                <span class="badge bg-primary" id="progressPct">{{ $progress['percent'] }}%</span>
+                <button class="btn btn-sm btn-success" id="btnComplete"
+                    {{ $progress['percent'] < 100 ? 'disabled' : '' }}
+                    onclick="openCompleteModal()">
+                    <i class="bi bi-check-circle me-1"></i>Selesaikan PM
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════
+     HEADER CHECK SHEET (mirip Excel)
+══════════════════════════════════════════════ --}}
+<div class="cs-header">
+    <div class="cs-header-top">
+        <div class="fw-bold fs-6">
+            <i class="bi bi-file-earmark-check me-2"></i>Preventive Maintenance Check Sheet
+        </div>
+        <div class="text-end">
+            <div class="opacity-60" style="font-size:.68rem">Doc No</div>
+            <div class="fw-bold fs-7">{{ $record->doc_number }}</div>
+        </div>
+    </div>
+    <div class="cs-header-grid">
+        <div class="cs-header-cell">
+            <div class="lbl">Equipment</div>
+            <div class="val">{{ $record->equipment_name }}</div>
+        </div>
+        <div class="cs-header-cell">
+            <div class="lbl">PM Number</div>
+            <div class="val">{{ $record->pm_number ?? '—' }}</div>
+        </div>
+        <div class="cs-header-cell">
+            <div class="lbl">Equ. No</div>
+            <div class="val">{{ $record->equipment_code }}</div>
+        </div>
+    </div>
+    <div class="cs-header-grid" style="border-top:1px solid #dee2e6">
+        <div class="cs-header-cell">
+            <div class="lbl">ETM Group</div>
+            <div class="val">{{ $record->etm_group }}</div>
+        </div>
+        <div class="cs-header-cell">
+            <div class="lbl">TIS Number</div>
+            <div class="val">{{ $record->tis_number ?? '—' }}</div>
+        </div>
+        <div class="cs-header-cell d-flex gap-5">
+            <div>
+                <div class="lbl">Year</div>
+                <div class="val">{{ date('Y', strtotime($record->maintenance_date)) }}</div>
+            </div>
+            <div>
+                <div class="lbl">PM Cycle</div>
+                <div class="val"><span class="badge badge-light-primary">{{ $record->pm_cycle }}</span></div>
+            </div>
+            <div>
+                <div class="lbl">PM Status</div>
+                <div class="val"><span class="badge badge-light-warning">In Progress</span></div>
+            </div>
+        </div>
+    </div>
+    <div class="cs-header-grid" style="border-top:1px solid #dee2e6">
+        <div class="cs-header-cell">
+            <div class="lbl">Prepared by (Teknisi)</div>
+            <div class="val">{{ $record->technician_name }}</div>
+        </div>
+        <div class="cs-header-cell">
+            <div class="lbl">Tanggal · Waktu Mulai</div>
+            <div class="val">
+                {{ \Carbon\Carbon::parse($record->maintenance_date)->format('d M Y') }}
+                · {{ $record->start_time }}
+            </div>
+        </div>
+        <div class="cs-header-cell">
+            <div class="lbl">Checked by</div>
+            <div class="val text-muted">{{ $record->checker_name ?? '(menunggu)' }}</div>
+        </div>
+    </div>
+</div>
+
+{{-- Legend penjelasan status + worktime --}}
+<div class="d-flex flex-wrap gap-3 py-3 px-1 mb-1 align-items-center">
+    <div class="d-flex align-items-center gap-4 flex-wrap fs-8">
+        <span class="fw-bold text-muted">Status:</span>
+        <span>
+            <span class="legend-dot" style="background:#50cd89"></span>
+            <strong>OK</strong> — Kondisi normal, sesuai standar
+        </span>
+        <span>
+            <span class="legend-dot" style="background:#f1416c"></span>
+            <strong>NG</strong> — Not Good, tidak sesuai standar
+        </span>
+        <span>
+            <span class="legend-dot" style="background:#b5b5c3"></span>
+            <strong>N/A</strong> — Not Applicable, tidak relevan/tidak berlaku
+        </span>
+    </div>
+    <div class="ms-auto d-flex align-items-center gap-2 fs-8 text-muted">
+        <i class="bi bi-info-circle text-primary"></i>
+        <span>Kolom <strong>Man Power</strong> &amp; <strong>Time</strong>:
+            <span class="text-muted">Plan</span> →
+            <span class="text-primary fw-bold">Aktual</span> (isi jika berbeda)
+        </span>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════
+     TABEL CHECK SHEET
+══════════════════════════════════════════════ --}}
+<div class="cs-table-wrap">
+<table class="cs-table" id="csTable">
+    <thead>
+        {{-- Baris 1: Group header --}}
+        <tr>
+            <th rowspan="2" class="th-left" style="width:32px">No.</th>
+            <th rowspan="2" class="th-left" style="min-width:100px">Sub Equip.</th>
+            <th rowspan="2" class="th-left" style="min-width:190px">Check Item</th>
+            <th rowspan="2" class="th-left" style="min-width:185px">Maintenance Standard</th>
+            {{-- PM Type group --}}
+            <th colspan="6" style="border-left:2px solid #3d6494">PM Type</th>
+            {{-- Work Time group --}}
+            <th colspan="2" style="border-left:2px solid #3d6494">
+                Work Time
+                <div style="font-size:.58rem;font-weight:400;opacity:.75">Plan → Aktual</div>
+            </th>
+            {{-- Hasil --}}
+            <th colspan="2" style="border-left:2px solid #3d6494;min-width:150px">
+                Hasil Pemeriksaan
+                <div style="font-size:.6rem;font-weight:400;opacity:.8">
+                    {{ \Carbon\Carbon::parse($record->maintenance_date)->format('d/m/Y') }}
+                </div>
+            </th>
+            <th rowspan="2" style="min-width:140px;border-left:2px solid #3d6494">
+                Keterangan / Remarks
+            </th>
+            <th rowspan="2" style="min-width:56px;border-left:2px solid #3d6494">Foto</th>
+            <th rowspan="2" style="min-width:40px;border-left:2px solid #3d6494"
+                title="Perlu Tindakan Lanjut">⚠</th>
+        </tr>
+        {{-- Baris 2: sub-header --}}
+        <tr>
+            <th style="width:38px;border-left:2px solid #3d6494;font-size:.62rem">Check</th>
+            <th style="width:48px;font-size:.62rem">Lubricate</th>
+            <th style="width:48px;font-size:.62rem">Cleaning</th>
+            <th style="width:44px;font-size:.62rem">Tighten</th>
+            <th style="width:46px;font-size:.62rem">Measure</th>
+            <th style="width:46px;font-size:.62rem">Replace</th>
+            {{-- Man Power --}}
+            <th style="width:80px;border-left:2px solid #3d6494;font-size:.62rem">
+                Man Power<br><span style="opacity:.7">(orang)</span>
+            </th>
+            {{-- Time --}}
+            <th style="width:80px;font-size:.62rem">
+                Time<br><span style="opacity:.7">(menit)</span>
+            </th>
+            {{-- Status --}}
+            <th style="width:74px;border-left:2px solid #3d6494">Status</th>
+            {{-- Measurement value --}}
+            <th style="width:80px;font-size:.62rem">Nilai Ukur</th>
+        </tr>
+    </thead>
+
+    <tbody id="csBody">
+        @php $lastSubEq = '__INIT__'; @endphp
+
+        @foreach($items as $item)
+
+        @if($item->sub_equipment !== $lastSubEq)
+        {{-- Sub-equipment divider --}}
+        <tr class="sub-eq-row">
+            <td colspan="19">
+                <i class="bi bi-gear-fill me-2 text-primary opacity-75" style="font-size:.68rem"></i>
+                {{ $item->sub_equipment ?: 'General' }}
+            </td>
+        </tr>
+        @php $lastSubEq = $item->sub_equipment; @endphp
+        @endif
+
+        @php
+            $pmTypes  = $item->pm_types ?? [];
+            $pmCols   = ['Check','Lubricate','Cleaning','Tighten','Measure','Replace'];
+            $hasMeas  = in_array('Measure', $pmTypes);
+            $measData = $item->measurements;
+            $photos   = $item->photos ?? [];
+            $st       = $item->status;
+
+            // Nilai aktual (dari DB jika sudah pernah diisi)
+            $actualMp   = $item->actual_man_power ?? null;
+            $actualTime = $item->actual_time_minutes ?? null;
+        @endphp
+
+        {{-- ── Main item row ── --}}
+        <tr class="item-row st-{{ $st }}" id="row-{{ $item->id }}" data-item="{{ $item->id }}">
+
+            {{-- No --}}
+            <td class="text-center fw-bold" style="color:#6c757d;font-size:.75rem">
+                {{ $item->item_number }}
+            </td>
+
+            {{-- Sub Equipment --}}
+            <td class="text-muted" style="font-size:.72rem">{{ $item->sub_equipment }}</td>
+
+            {{-- Check Item --}}
+            <td>
+                <div class="fw-semibold" style="line-height:1.3;font-size:.78rem">
+                    {{ $item->check_item }}
+                </div>
+            </td>
+
+            {{-- Maintenance Standard --}}
+            <td style="font-size:.71rem;color:#5e6278;line-height:1.3">
+                {{ $item->maintenance_standard }}
+            </td>
+
+            {{-- PM Type ■ --}}
+            @foreach($pmCols as $col)
+            <td class="text-center" style="{{ $loop->first ? 'border-left:2px solid #dee2e6' : '' }}">
+                @if(in_array($col, $pmTypes))
+                    <span class="pm-dot" title="{{ $col }}">■</span>
                 @endif
+            </td>
+            @endforeach
 
-                {{-- ── CHECK SHEET ITEMS ── --}}
-                @foreach ($groupedItems as $subEquipment => $subItems)
-                    <div class="mb-6">
-                        <div class="sub-equipment-header mb-3">
-                            <div class="fw-bold text-gray-800 fs-6">
-                                <i class="bi bi-gear me-2 text-primary"></i>
-                                {{ $subEquipment ?: 'General' }}
-                            </div>
-                            <div class="text-muted fs-8">{{ $subItems->count() }} item pemeriksaan</div>
-                        </div>
+            {{-- ══ Man Power: Plan + Aktual ══ --}}
+            <td class="worktime-cell" style="border-left:2px solid #dee2e6">
+                <span class="plan-label">Plan</span>
+                <span class="plan-val">{{ $item->man_power }} org</span>
+                <input type="number"
+                    class="actual-input mp-input {{ $actualMp ? 'changed' : '' }}"
+                    id="mp-{{ $item->id }}"
+                    min="1" max="99"
+                    placeholder="{{ $item->man_power }}"
+                    value="{{ $actualMp ?? '' }}"
+                    data-plan="{{ $item->man_power }}"
+                    data-item="{{ $item->id }}"
+                    onblur="saveActualMp({{ $item->id }}, this)"
+                    title="Aktual jumlah teknisi yang mengerjakan">
+                <span class="actual-tag">aktual</span>
+            </td>
 
-                        @foreach ($subItems as $item)
-                            <div class="check-item-card status-{{ $item->status }}" id="card-{{ $item->id }}"
-                                data-item-id="{{ $item->id }}">
-                                <div class="p-4">
-                                    {{-- Item Header --}}
-                                    <div class="d-flex align-items-start gap-3 mb-3">
-                                        <div class="item-num-badge">{{ $item->item_number }}</div>
-                                        <div class="flex-grow-1">
-                                            <div class="fw-bold text-gray-800 mb-1">{{ $item->check_item }}</div>
-                                            <div class="text-muted fs-8">
-                                                <i class="bi bi-shield-check me-1"></i>
-                                                {{ $item->maintenance_standard }}
-                                            </div>
-                                            @if (!empty($item->pm_types))
-                                                <div class="d-flex gap-1 mt-1 flex-wrap">
-                                                    @foreach ($item->pm_types as $pt)
-                                                        <span
-                                                            class="badge badge-light-secondary fs-8">{{ $pt }}</span>
-                                                    @endforeach
-                                                </div>
-                                            @endif
-                                        </div>
-                                        <div class="text-end text-muted fs-8">
-                                            <div><i class="bi bi-people me-1"></i>{{ $item->man_power }} org</div>
-                                            <div><i class="bi bi-clock me-1"></i>{{ $item->time_minutes }} mnt</div>
-                                        </div>
-                                    </div>
+            {{-- ══ Time: Plan + Aktual ══ --}}
+            <td class="worktime-cell">
+                <span class="plan-label">Plan</span>
+                <span class="plan-val">{{ $item->time_minutes }} mnt</span>
+                <input type="number"
+                    class="actual-input time-input {{ $actualTime ? 'changed' : '' }}"
+                    id="time-{{ $item->id }}"
+                    min="1" max="9999"
+                    placeholder="{{ $item->time_minutes }}"
+                    value="{{ $actualTime ?? '' }}"
+                    data-plan="{{ $item->time_minutes }}"
+                    data-item="{{ $item->id }}"
+                    onblur="saveActualTime({{ $item->id }}, this)"
+                    title="Aktual waktu pengerjaan dalam menit">
+                <span class="actual-tag">aktual (mnt)</span>
+            </td>
 
-                                    {{-- Status Buttons --}}
-                                    <div class="d-flex align-items-center gap-3 flex-wrap">
-                                        <div class="status-btn-group d-flex gap-1">
-                                            <button type="button"
-                                                class="btn btn-sm btn-outline-success {{ $item->status === 'ok' ? 'active-ok' : '' }}"
-                                                onclick="setStatus({{ $item->id }}, 'ok', this)">
-                                                <i class="bi bi-check-lg me-1"></i>OK
-                                            </button>
-                                            <button type="button"
-                                                class="btn btn-sm btn-outline-danger {{ $item->status === 'ng' ? 'active-ng' : '' }}"
-                                                onclick="setStatus({{ $item->id }}, 'ng', this)">
-                                                <i class="bi bi-x-lg me-1"></i>NG
-                                            </button>
-                                            <button type="button"
-                                                class="btn btn-sm btn-outline-secondary {{ $item->status === 'na' ? 'active-na' : '' }}"
-                                                onclick="setStatus({{ $item->id }}, 'na', this)">
-                                                N/A
-                                            </button>
-                                        </div>
-
-                                        {{-- Remarks --}}
-                                        <input type="text"
-                                            class="form-control form-control-sm flex-grow-1 remarks-input"
-                                            placeholder="Keterangan / catatan..." value="{{ $item->remarks ?? '' }}"
-                                            data-item-id="{{ $item->id }}" style="min-width: 200px;"
-                                            onblur="saveRemarks({{ $item->id }}, this.value)">
-
-                                        {{-- Action required --}}
-                                        <div class="form-check form-switch mb-0">
-                                            <input class="form-check-input" type="checkbox" id="req-{{ $item->id }}"
-                                                {{ $item->requires_action ? 'checked' : '' }}
-                                                onchange="toggleAction({{ $item->id }}, this.checked)">
-                                            <label class="form-check-label fs-8 text-muted"
-                                                for="req-{{ $item->id }}">
-                                                Perlu tindakan
-                                            </label>
-                                        </div>
-
-                                        {{-- Upload foto --}}
-                                        <div class="d-flex align-items-center gap-2">
-                                            <label class="btn btn-sm btn-light-primary mb-0" style="cursor:pointer">
-                                                <i class="bi bi-camera me-1"></i>Foto
-                                                <input type="file" accept="image/*" style="display:none"
-                                                    onchange="uploadPhoto({{ $item->id }}, this)">
-                                            </label>
-                                            {{-- Foto yang sudah ada --}}
-                                            <div class="d-flex gap-1 flex-wrap" id="photos-{{ $item->id }}">
-                                                @foreach ($item->photos as $ph)
-                                                    <img src="{{ $ph['url'] }}" class="photo-thumb"
-                                                        onclick="previewPhoto('{{ $ph['url'] }}')"
-                                                        title="Klik untuk lihat">
-                                                @endforeach
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {{-- Action Required Detail (hidden by default) --}}
-                                    <div id="actionDetail-{{ $item->id }}"
-                                        class="{{ $item->requires_action ? '' : 'd-none' }} mt-3">
-                                        <div
-                                            class="alert alert-light-warning border border-warning border-dashed py-3 mb-0">
-                                            <label class="fw-semibold fs-8 text-warning mb-1">
-                                                <i class="bi bi-wrench me-1"></i>Tindakan yang Diperlukan:
-                                            </label>
-                                            <input type="text" class="form-control form-control-sm"
-                                                id="actionInput-{{ $item->id }}"
-                                                placeholder="Deskripsikan tindakan yang perlu dilakukan..."
-                                                value="{{ $item->action_required ?? '' }}"
-                                                onblur="saveAction({{ $item->id }}, this.value)">
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                @endforeach
-
-                {{-- ── FLOATING SUBMIT (mobile) ── --}}
-                <div class="d-lg-none position-fixed bottom-0 start-0 end-0 p-3"
-                    style="background: rgba(255,255,255,.95); border-top: 1px solid #eff2f5; z-index: 99;">
-                    <button class="btn btn-primary w-100" id="btnCompleteMobile"
-                        {{ $progress['percent'] < 100 ? 'disabled' : '' }} onclick="submitComplete()">
-                        <i class="bi bi-check-circle me-2"></i>
-                        Selesaikan PM (<span id="progressTextMobile">{{ $progress['percent'] }}</span>%)
-                    </button>
+            {{-- ══ Status Result ══ --}}
+            <td class="result-cell" style="border-left:2px solid #dee2e6">
+                <div class="result-btn-group">
+                    <button class="result-btn r-ok {{ $st === 'ok' ? 'active' : '' }}"
+                        onclick="setStatus({{ $item->id }}, 'ok', this)"
+                        title="OK — Sesuai standar">OK</button>
+                    <button class="result-btn r-ng {{ $st === 'ng' ? 'active' : '' }}"
+                        onclick="setStatus({{ $item->id }}, 'ng', this)"
+                        title="NG — Tidak sesuai standar">NG</button>
+                    <button class="result-btn r-na {{ $st === 'na' ? 'active' : '' }}"
+                        onclick="setStatus({{ $item->id }}, 'na', this)"
+                        title="N/A — Tidak berlaku">NA</button>
                 </div>
+            </td>
 
-                {{-- ── MODAL PREVIEW FOTO ── --}}
-                <div class="modal fade" id="photoModal" tabindex="-1">
-                    <div class="modal-dialog modal-dialog-centered modal-lg">
-                        <div class="modal-content border-0">
-                            <div class="modal-header border-0 pb-0">
-                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body text-center p-4">
-                                <img id="previewImg" src="" class="img-fluid rounded" style="max-height: 70vh;">
-                            </div>
+            {{-- Nilai ukur (muncul jika PM Type = Measure) --}}
+            <td>
+                @if($hasMeas)
+                <input type="text"
+                    class="meas-inline"
+                    placeholder="nilai..."
+                    value="{{ is_array($measData) ? ($measData['value'] ?? '') : '' }}"
+                    data-item="{{ $item->id }}"
+                    onblur="saveMeasurement({{ $item->id }}, this.value)"
+                    title="Isi hasil pengukuran">
+                @else
+                <span class="text-muted" style="font-size:.65rem">—</span>
+                @endif
+            </td>
+
+            {{-- Remarks --}}
+            <td style="border-left:2px solid #dee2e6">
+                <input type="text"
+                    class="remarks-inline remarks-input"
+                    placeholder="keterangan..."
+                    value="{{ $item->remarks ?? '' }}"
+                    data-item="{{ $item->id }}"
+                    onblur="saveRemarks({{ $item->id }}, this.value)">
+            </td>
+
+            {{-- Foto --}}
+            <td class="text-center" style="border-left:2px solid #dee2e6">
+                <div class="d-flex flex-column align-items-center gap-1">
+                    <label class="photo-btn mb-0" title="Upload foto" style="cursor:pointer">
+                        <i class="bi bi-camera"></i>
+                        <input type="file" accept="image/*" style="display:none"
+                            onchange="uploadPhoto({{ $item->id }}, this)">
+                    </label>
+                    <span class="photo-count {{ count($photos) === 0 ? 'd-none' : '' }}"
+                        id="photoCount-{{ $item->id }}"
+                        onclick="toggleExpand({{ $item->id }})"
+                        title="Lihat foto">
+                        <i class="bi bi-images"></i> {{ count($photos) ?: '' }}
+                    </span>
+                </div>
+            </td>
+
+            {{-- Action required toggle --}}
+            <td class="text-center" style="border-left:2px solid #dee2e6">
+                <button class="action-toggle {{ $item->requires_action ? 'active' : '' }}"
+                    id="actBtn-{{ $item->id }}"
+                    onclick="toggleAction({{ $item->id }}, this)"
+                    title="Tandai butuh tindakan lanjut">
+                    <i class="bi bi-wrench"></i>
+                </button>
+            </td>
+        </tr>
+
+        {{-- ── Expand row: foto + action detail ── --}}
+        <tr class="expand-row {{ ($item->requires_action || count($photos) > 0) ? 'show' : '' }}"
+            id="expand-{{ $item->id }}">
+            <td colspan="19">
+                <div class="d-flex flex-wrap gap-4 align-items-start">
+                    {{-- Foto list --}}
+                    <div>
+                        <div class="text-muted fw-semibold mb-1" style="font-size:.7rem">
+                            <i class="bi bi-images me-1"></i>Foto
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap" id="photoList-{{ $item->id }}">
+                            @foreach($photos as $ph)
+                            <img src="{{ $ph['url'] }}"
+                                onclick="previewPhoto('{{ $ph['url'] }}')"
+                                style="width:56px;height:56px;object-fit:cover;
+                                    border-radius:5px;border:1.5px solid #dee2e6;cursor:pointer">
+                            @endforeach
                         </div>
                     </div>
-                </div>
-
-                {{-- ── MODAL KONFIRMASI SELESAI ── --}}
-                <div class="modal fade" id="completeModal" tabindex="-1">
-                    <div class="modal-dialog modal-dialog-centered">
-                        <div class="modal-content border-0 shadow">
-                            <div class="modal-header border-0">
-                                <h5 class="modal-title fw-bold">
-                                    <i class="bi bi-check-circle text-success me-2"></i>
-                                    Selesaikan Pengerjaan PM?
-                                </h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body">
-                                <p class="text-muted mb-3">
-                                    Semua <strong>{{ $progress['total'] }} item</strong> sudah diisi.
-                                    Record akan disubmit ke Checker untuk divalidasi.
-                                </p>
-                                <div class="alert alert-light-info">
-                                    <i class="bi bi-info-circle me-2"></i>
-                                    Setelah disubmit, data tidak dapat diubah kecuali dikembalikan oleh Checker.
-                                </div>
-                            </div>
-                            <div class="modal-footer border-0">
-                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
-                                <form method="POST" action="{{ route('admin.records.complete', $record->id) }}">
-                                    @csrf
-                                    <button type="submit" class="btn btn-success">
-                                        <i class="bi bi-check-lg me-1"></i>Ya, Selesaikan PM
-                                    </button>
-                                </form>
-                            </div>
+                    {{-- Action required detail --}}
+                    <div id="actionDetail-{{ $item->id }}"
+                        class="{{ $item->requires_action ? '' : 'd-none' }} flex-grow-1">
+                        <div class="text-warning fw-semibold mb-1" style="font-size:.7rem">
+                            <i class="bi bi-exclamation-triangle me-1"></i>Tindakan yang Diperlukan
                         </div>
+                        <input type="text" class="form-control form-control-sm"
+                            id="actionInput-{{ $item->id }}"
+                            placeholder="Deskripsikan tindakan lanjut yang diperlukan..."
+                            value="{{ $item->action_required ?? '' }}"
+                            onblur="saveAction({{ $item->id }}, this.value)"
+                            style="border-color:#ffc107;max-width:420px">
+                    </div>
+                </div>
+            </td>
+        </tr>
+
+        @endforeach
+    </tbody>
+
+    {{-- Footer: Checker + Validator --}}
+    <tfoot>
+        <tr style="background:#f5f8fa">
+            <td colspan="4" class="text-center py-3 fw-bold" style="font-size:.78rem;color:#1e3a5f">
+                Checker
+                <div class="fw-normal text-muted mt-1" style="min-height:24px">
+                    {{ $record->checker_name ?? '' }}
+                </div>
+            </td>
+            <td colspan="9"></td>
+            <td colspan="6" class="text-center py-3 fw-bold"
+                style="font-size:.78rem;color:#1e3a5f;border-left:2px solid #dee2e6">
+                TL Validation
+                <div class="fw-normal text-muted mt-1" style="min-height:24px">
+                    {{ $record->validator_name ?? '' }}
+                </div>
+            </td>
+        </tr>
+    </tfoot>
+</table>
+</div>
+
+{{-- ── Summary bawah: total plan vs aktual ── --}}
+<div class="card card-flush border-0 shadow-sm mt-4" id="summaryCard">
+    <div class="card-body py-4 px-5">
+        <div class="row align-items-center g-4">
+            <div class="col-md-5">
+                <div class="fw-bold text-gray-800 mb-1">Ringkasan Waktu & Tenaga</div>
+                <div class="text-muted fs-8">Plan dari template vs aktual yang diisi</div>
+            </div>
+            <div class="col-md-7">
+                <div class="row g-3 text-center">
+                    <div class="col-3">
+                        <div class="text-muted fs-8 mb-1">Total Man Power Plan</div>
+                        <div class="fw-bold fs-5 text-gray-800" id="sumMpPlan">
+                            {{ $items->sum('man_power') }}
+                        </div>
+                        <div class="text-muted fs-8">orang</div>
+                    </div>
+                    <div class="col-3">
+                        <div class="text-muted fs-8 mb-1">Total Man Power Aktual</div>
+                        <div class="fw-bold fs-5 text-primary" id="sumMpActual">
+                            {{ $items->sum('actual_man_power') ?: '—' }}
+                        </div>
+                        <div class="text-muted fs-8">orang</div>
+                    </div>
+                    <div class="col-3">
+                        <div class="text-muted fs-8 mb-1">Total Time Plan</div>
+                        <div class="fw-bold fs-5 text-gray-800" id="sumTimePlan">
+                            {{ $items->sum('time_minutes') }}
+                        </div>
+                        <div class="text-muted fs-8">menit</div>
+                    </div>
+                    <div class="col-3">
+                        <div class="text-muted fs-8 mb-1">Total Time Aktual</div>
+                        <div class="fw-bold fs-5 text-primary" id="sumTimeActual">
+                            {{ $items->sum('actual_time_minutes') ?: '—' }}
+                        </div>
+                        <div class="text-muted fs-8">menit</div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
+{{-- ── NG Summary ── --}}
+<div id="ngSummary" class="mt-4" style="{{ $progress['ng'] > 0 ? '' : 'display:none' }}">
+    <div class="alert alert-light-danger border border-danger border-dashed">
+        <div class="fw-bold text-danger mb-2">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Item NG — <span id="ngCount">{{ $progress['ng'] }}</span> item
+        </div>
+        <div id="ngList">
+            @foreach($items->where('status','ng') as $ngItem)
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="badge badge-light-danger">{{ $ngItem->item_number }}</span>
+                <span class="fs-8">{{ $ngItem->check_item }}</span>
+            </div>
+            @endforeach
+        </div>
+    </div>
+</div>
 
+<div class="mb-10 d-lg-none"></div>
+
+{{-- Mobile float btn --}}
+<div class="d-lg-none position-fixed bottom-0 start-0 end-0 p-3"
+    style="background:rgba(255,255,255,.95);border-top:1px solid #eff2f5;z-index:150">
+    <button class="btn btn-success w-100" id="btnCompleteMobile"
+        {{ $progress['percent'] < 100 ? 'disabled' : '' }}
+        onclick="openCompleteModal()">
+        <i class="bi bi-check-circle me-1"></i>
+        Selesaikan PM · <span id="mobilePct">{{ $progress['percent'] }}</span>%
+    </button>
+</div>
+
+{{-- Modal Preview Foto --}}
+<div class="modal fade" id="photoModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0">
+            <div class="modal-header border-0 pb-0">
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="previewImg" src="" class="img-fluid rounded" style="max-height:75vh">
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Modal Konfirmasi Selesai --}}
+<div class="modal fade" id="completeModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-0 pb-2">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-check-circle-fill text-success me-2"></i>
+                    Selesaikan Pengerjaan PM?
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-0">
+                <div class="row g-3 text-center mb-4">
+                    <div class="col-4">
+                        <div class="fs-1 fw-bold text-success" id="mOk">{{ $progress['ok'] }}</div>
+                        <div class="text-muted fs-8">OK</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="fs-1 fw-bold text-danger" id="mNg">{{ $progress['ng'] }}</div>
+                        <div class="text-muted fs-8">NG</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="fs-1 fw-bold text-muted" id="mNa">
+                            {{ $items->where('status','na')->count() }}
+                        </div>
+                        <div class="text-muted fs-8">N/A</div>
+                    </div>
+                </div>
+                {{-- Deviasi plan vs aktual --}}
+                <div id="deviationAlert" style="display:none"
+                    class="alert alert-light-warning border border-warning border-dashed fs-8 mb-3">
+                    <i class="bi bi-exclamation-triangle me-1"></i>
+                    <strong>Ada deviasi waktu/tenaga</strong> — beberapa item aktual berbeda dari plan.
+                    Pastikan sudah diisi dengan benar.
+                </div>
+                <div class="alert alert-light-info fs-8 mb-0">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Setelah diselesaikan, record dikirim ke Checker untuk divalidasi.
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+                <form method="POST"
+                    action="{{ route('admin.records.complete', $record->id) }}">
+                    @csrf
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-lg me-1"></i>Ya, Selesaikan PM
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
 @endsection
 
 @push('scripts')
-    <script>
-        const RECORD_ID = {{ $record->id }};
-        const API_BASE = '{{ url('/admin/maintenance/records') }}';
-        const CSRF = '{{ csrf_token() }}';
+<script>
+const RECORD_ID = {{ $record->id }};
+const CSRF      = '{{ csrf_token() }}';
+const BASE_URL  = '{{ url("/admin/maintenance/records") }}';
 
-        let saveTimer = {};
-        let currentStats = {
-            ok: {{ $progress['ok'] }},
-            ng: {{ $progress['ng'] }},
-            pending: {{ $progress['pending'] }},
-            done: {{ $progress['done'] }},
-            total: {{ $progress['total'] }},
-        };
+const debounceMap = {};
 
-        // ── Set status item ──────────────────────────────────────
-        function setStatus(itemId, status, btn) {
-            // Update UI card border
-            const card = document.getElementById('card-' + itemId);
-            card.className = card.className.replace(/status-\w+/, 'status-' + status);
+// ── Set Status ────────────────────────────────────────────
+function setStatus(itemId, status, btn) {
+    const row = document.getElementById('row-' + itemId);
+    row.className = row.className.replace(/\bst-\w+/g, '').trim();
+    row.classList.add('st-' + status);
+    row.querySelectorAll('.result-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    saveItem(itemId, { status });
+}
 
-            // Update button UI
-            const group = card.querySelector('.status-btn-group');
-            group.querySelectorAll('button').forEach(b => {
-                b.classList.remove('active-ok', 'active-ng', 'active-na');
+// ── Save Remarks ──────────────────────────────────────────
+function saveRemarks(itemId, value) {
+    clearTimeout(debounceMap['r' + itemId]);
+    debounceMap['r' + itemId] = setTimeout(() => saveItem(itemId, { remarks: value }), 700);
+}
+
+// ── Save Measurement ──────────────────────────────────────
+function saveMeasurement(itemId, value) {
+    clearTimeout(debounceMap['m' + itemId]);
+    debounceMap['m' + itemId] = setTimeout(() =>
+        saveItem(itemId, { measurements: { value } }), 700);
+}
+
+// ── Save Actual Man Power ─────────────────────────────────
+function saveActualMp(itemId, el) {
+    const val  = el.value ? parseInt(el.value) : null;
+    const plan = parseInt(el.dataset.plan);
+    // Tandai changed jika berbeda dari plan
+    el.classList.toggle('changed', val !== null && val !== plan);
+    clearTimeout(debounceMap['mp' + itemId]);
+    debounceMap['mp' + itemId] = setTimeout(() => {
+        saveItem(itemId, { actual_man_power: val });
+        recalcSummary();
+    }, 700);
+}
+
+// ── Save Actual Time ──────────────────────────────────────
+function saveActualTime(itemId, el) {
+    const val  = el.value ? parseInt(el.value) : null;
+    const plan = parseInt(el.dataset.plan);
+    el.classList.toggle('changed', val !== null && val !== plan);
+    clearTimeout(debounceMap['t' + itemId]);
+    debounceMap['t' + itemId] = setTimeout(() => {
+        saveItem(itemId, { actual_time_minutes: val });
+        recalcSummary();
+    }, 700);
+}
+
+// ── Toggle Action Required ────────────────────────────────
+function toggleAction(itemId, btn) {
+    const isActive = btn.classList.toggle('active');
+    const detail   = document.getElementById('actionDetail-' + itemId);
+    const expand   = document.getElementById('expand-' + itemId);
+    isActive ? detail.classList.remove('d-none') : detail.classList.add('d-none');
+    if (isActive) expand.classList.add('show');
+    else {
+        const photos = document.getElementById('photoList-' + itemId);
+        if (!photos || photos.children.length === 0) expand.classList.remove('show');
+    }
+    saveItem(itemId, { requires_action: isActive });
+}
+
+function saveAction(itemId, value) {
+    saveItem(itemId, { action_required: value });
+}
+
+// ── Toggle Expand Row ─────────────────────────────────────
+function toggleExpand(itemId) {
+    document.getElementById('expand-' + itemId).classList.toggle('show');
+}
+
+// ── Upload Photo ──────────────────────────────────────────
+function uploadPhoto(itemId, input) {
+    if (!input.files?.length) return;
+    const fd = new FormData();
+    fd.append('photo', input.files[0]);
+    fd.append('_token', CSRF);
+    showSave('saving', 'Mengupload foto...');
+
+    $.ajax({
+        url: `${BASE_URL}/${RECORD_ID}/upload-photo/${itemId}`,
+        method: 'POST', data: fd,
+        processData: false, contentType: false,
+        success(res) {
+            if (!res.success) return showSave('err', 'Gagal upload');
+            const list = document.getElementById('photoList-' + itemId);
+            const img  = document.createElement('img');
+            img.src    = res.photo.url;
+            Object.assign(img.style, {
+                width: '56px', height: '56px', objectFit: 'cover',
+                borderRadius: '5px', border: '1.5px solid #dee2e6', cursor: 'pointer'
             });
-            btn.classList.add('active-' + status);
+            img.onclick = () => previewPhoto(res.photo.url);
+            list.appendChild(img);
 
-            // Save ke server
-            saveItem(itemId, {
-                status
-            });
-        }
-
-        // ── Simpan remarks (debounce 800ms) ──────────────────────
-        function saveRemarks(itemId, value) {
-            clearTimeout(saveTimer['r' + itemId]);
-            saveTimer['r' + itemId] = setTimeout(() => saveItem(itemId, {
-                remarks: value
-            }), 800);
-        }
-
-        // ── Toggle requires_action ────────────────────────────────
-        function toggleAction(itemId, checked) {
-            const detail = document.getElementById('actionDetail-' + itemId);
-            if (checked) detail.classList.remove('d-none');
-            else detail.classList.add('d-none');
-            saveItem(itemId, {
-                requires_action: checked
-            });
-        }
-
-        // ── Simpan action_required ────────────────────────────────
-        function saveAction(itemId, value) {
-            saveItem(itemId, {
-                action_required: value
-            });
-        }
-
-        // ── Core AJAX save ────────────────────────────────────────
-        function saveItem(itemId, data) {
-            showSave('saving');
-
-            // Kumpulkan data lengkap item
-            const card = document.getElementById('card-' + itemId);
-            const statusEl = card.querySelector('[class*="active-ok"], [class*="active-ng"], [class*="active-na"]');
-            const status = statusEl ?
-                (statusEl.classList.contains('active-ok') ? 'ok' :
-                    statusEl.classList.contains('active-ng') ? 'ng' : 'na') :
-                'pending';
-
-            const remarks = card.querySelector('.remarks-input')?.value ?? '';
-            const reqAction = document.getElementById('req-' + itemId)?.checked ?? false;
-            const actionVal = document.getElementById('actionInput-' + itemId)?.value ?? '';
-
-            const payload = Object.assign({
-                status,
-                remarks,
-                requires_action: reqAction,
-                action_required: actionVal,
-            }, data);
-
-            $.ajax({
-                url: `${API_BASE}/${RECORD_ID}/items/${itemId}`,
-                method: 'PUT',
-                data: JSON.stringify(payload),
-                contentType: 'application/json',
-                headers: {
-                    'X-CSRF-TOKEN': CSRF,
-                    'Accept': 'application/json'
-                },
-                success: function(res) {
-                    if (res.success) {
-                        showSave('saved');
-                        updateProgress(res.progress);
-                        // Hitung ulang stats lokal
-                        recalcStats();
-                    }
-                },
-                error: function() {
-                    showSave('error');
-                }
-            });
-        }
-
-        // ── Upload foto ───────────────────────────────────────────
-        function uploadPhoto(itemId, input) {
-            if (!input.files.length) return;
-            const file = input.files[0];
-            const formData = new FormData();
-            formData.append('photo', file);
-            formData.append('_token', CSRF);
-
-            showSave('saving');
-
-            $.ajax({
-                url: `${API_BASE}/${RECORD_ID}/upload-photo/${itemId}`,
-                method: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
-                success: function(res) {
-                    if (res.success) {
-                        const img = $('<img>').addClass('photo-thumb')
-                            .attr('src', res.photo.url)
-                            .attr('title', 'Klik untuk lihat')
-                            .on('click', () => previewPhoto(res.photo.url));
-                        $('#photos-' + itemId).append(img);
-                        showSave('saved');
-                    }
-                },
-                error: function() {
-                    showSave('error');
-                }
-            });
-
-            input.value = ''; // reset input
-        }
-
-        // ── Preview foto modal ────────────────────────────────────
-        function previewPhoto(url) {
-            document.getElementById('previewImg').src = url;
-            new bootstrap.Modal(document.getElementById('photoModal')).show();
-        }
-
-        // ── Tampilkan progress ────────────────────────────────────
-        function updateProgress(prog) {
-            document.getElementById('progressBar').style.width = prog.percent + '%';
-            document.getElementById('progressText').textContent = prog.done + '/' + prog.total + ' item';
-            document.getElementById('progressPercent').textContent = prog.percent + '%';
-            document.getElementById('progressTextMobile').textContent = prog.percent;
-
-            // Enable/disable complete button
-            const canComplete = prog.percent >= 100;
-            document.getElementById('btnComplete').disabled = !canComplete;
-            const btnMobile = document.getElementById('btnCompleteMobile');
-            if (btnMobile) btnMobile.disabled = !canComplete;
-        }
-
-        // ── Hitung stats OK/NG/Pending dari DOM ──────────────────
-        function recalcStats() {
-            let ok = 0,
-                ng = 0,
-                pending = 0;
-            document.querySelectorAll('.check-item-card').forEach(card => {
-                if (card.classList.contains('status-ok')) ok++;
-                else if (card.classList.contains('status-ng')) ng++;
-                else pending++;
-            });
-            document.getElementById('statOk').textContent = ok;
-            document.getElementById('statNg').textContent = ng;
-            document.getElementById('statPending').textContent = pending;
-        }
-
-        // ── Indikator simpan ──────────────────────────────────────
-        let saveTimeout;
-
-        function showSave(state) {
-            const el = document.getElementById('saveIndicator');
-            clearTimeout(saveTimeout);
-            if (state === 'saving') {
-                el.className = 'save-indicator saving';
-                el.innerHTML = '<i class="bi bi-arrow-repeat spin me-1"></i>Menyimpan...';
-            } else if (state === 'saved') {
-                el.className = 'save-indicator saved';
-                el.innerHTML = '<i class="bi bi-check-circle me-1"></i>Tersimpan';
-                saveTimeout = setTimeout(() => {
-                    el.innerHTML = '';
-                }, 2500);
-            } else {
-                el.className = 'save-indicator error';
-                el.innerHTML = '<i class="bi bi-x-circle me-1"></i>Gagal simpan';
-                saveTimeout = setTimeout(() => {
-                    el.innerHTML = '';
-                }, 4000);
+            // Update badge
+            const badge = document.getElementById('photoCount-' + itemId);
+            if (badge) {
+                badge.innerHTML = `<i class="bi bi-images"></i> ${list.children.length}`;
+                badge.classList.remove('d-none');
             }
-        }
+            document.getElementById('expand-' + itemId).classList.add('show');
+            showSave('ok', 'Foto tersimpan');
+        },
+        error() { showSave('err', 'Gagal upload foto'); }
+    });
+    input.value = '';
+}
 
-        // ── Modal selesai ─────────────────────────────────────────
-        function submitComplete() {
-            new bootstrap.Modal(document.getElementById('completeModal')).show();
-        }
+function previewPhoto(url) {
+    document.getElementById('previewImg').src = url;
+    new bootstrap.Modal(document.getElementById('photoModal')).show();
+}
 
-        // ── Spinner animation ─────────────────────────────────────
-        const style = document.createElement('style');
-        style.textContent = '.spin { animation: spin .6s linear infinite; display: inline-block; }' +
-            '@keyframes spin { to { transform: rotate(360deg); } }';
-        document.head.appendChild(style);
-    </script>
+// ── Core AJAX Save ────────────────────────────────────────
+function saveItem(itemId, overrides) {
+    showSave('saving', 'Menyimpan...');
+
+    const row      = document.getElementById('row-' + itemId);
+    const activeBtn= row.querySelector('.result-btn.active');
+    const status   = activeBtn
+        ? (activeBtn.classList.contains('r-ok') ? 'ok'
+            : activeBtn.classList.contains('r-ng') ? 'ng' : 'na')
+        : 'pending';
+    const remarks  = row.querySelector('.remarks-input')?.value ?? '';
+    const measEl   = row.querySelector('.meas-inline');
+    const meas     = measEl ? { value: measEl.value } : null;
+    const reqAct   = document.getElementById('actBtn-' + itemId)?.classList.contains('active') ?? false;
+    const actVal   = document.getElementById('actionInput-' + itemId)?.value ?? '';
+    const mpEl     = document.getElementById('mp-' + itemId);
+    const timeEl   = document.getElementById('time-' + itemId);
+
+    const payload = Object.assign({
+        status,
+        remarks,
+        measurements:        meas,
+        requires_action:     reqAct,
+        action_required:     actVal,
+        actual_man_power:    mpEl?.value  ? parseInt(mpEl.value)   : null,
+        actual_time_minutes: timeEl?.value? parseInt(timeEl.value) : null,
+    }, overrides);
+
+    $.ajax({
+        url: `${BASE_URL}/${RECORD_ID}/items/${itemId}`,
+        method: 'PUT',
+        data: JSON.stringify(payload),
+        contentType: 'application/json',
+        headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+        success(res) {
+            if (res.success) {
+                showSave('ok', 'Tersimpan');
+                updateProgress(res.progress);
+                rebuildNgList();
+            } else {
+                showSave('err', 'Gagal simpan');
+            }
+        },
+        error() { showSave('err', 'Gagal simpan'); }
+    });
+}
+
+// ── Update Progress UI ────────────────────────────────────
+function updateProgress(prog) {
+    document.getElementById('progressBar').style.width  = prog.percent + '%';
+    document.getElementById('progressText').textContent = prog.done + '/' + prog.total;
+    document.getElementById('progressPct').textContent  = prog.percent + '%';
+    document.getElementById('mobilePct').textContent    = prog.percent;
+
+    const canDone = prog.percent >= 100;
+    document.getElementById('btnComplete').disabled = !canDone;
+    const mob = document.getElementById('btnCompleteMobile');
+    if (mob) mob.disabled = !canDone;
+
+    let ok = 0, ng = 0, na = 0, pending = 0;
+    document.querySelectorAll('.item-row').forEach(r => {
+        if      (r.classList.contains('st-ok'))  ok++;
+        else if (r.classList.contains('st-ng'))  ng++;
+        else if (r.classList.contains('st-na'))  na++;
+        else                                     pending++;
+    });
+    document.getElementById('statOk').textContent      = ok;
+    document.getElementById('statNg').textContent      = ng;
+    document.getElementById('statPending').textContent = pending;
+
+    const mOk = document.getElementById('mOk');
+    const mNg = document.getElementById('mNg');
+    const mNa = document.getElementById('mNa');
+    if (mOk) mOk.textContent = ok;
+    if (mNg) mNg.textContent = ng;
+    if (mNa) mNa.textContent = na;
+
+    document.getElementById('ngSummary').style.display = ng > 0 ? '' : 'none';
+    document.getElementById('ngCount').textContent = ng;
+}
+
+// ── Rebuild NG list ───────────────────────────────────────
+function rebuildNgList() {
+    const list = document.getElementById('ngList');
+    if (!list) return;
+    list.innerHTML = '';
+    document.querySelectorAll('.item-row.st-ng').forEach(row => {
+        const num  = row.querySelector('td:first-child').textContent.trim();
+        const name = row.querySelector('td:nth-child(3) .fw-semibold')?.textContent?.trim() ?? '';
+        const d    = document.createElement('div');
+        d.className = 'd-flex align-items-center gap-2 mb-1';
+        d.innerHTML = `<span class="badge badge-light-danger">${num}</span>
+                       <span class="fs-8">${name}</span>`;
+        list.appendChild(d);
+    });
+}
+
+// ── Hitung ulang summary plan vs aktual ───────────────────
+function recalcSummary() {
+    let sumMpActual = 0, sumTimeActual = 0;
+    let hasDev = false;
+    document.querySelectorAll('.mp-input').forEach(el => {
+        const val  = el.value ? parseInt(el.value) : 0;
+        const plan = parseInt(el.dataset.plan);
+        sumMpActual += val;
+        if (el.value && val !== plan) hasDev = true;
+    });
+    document.querySelectorAll('.time-input').forEach(el => {
+        const val  = el.value ? parseInt(el.value) : 0;
+        const plan = parseInt(el.dataset.plan);
+        sumTimeActual += val;
+        if (el.value && val !== plan) hasDev = true;
+    });
+
+    const mpEl   = document.getElementById('sumMpActual');
+    const timeEl = document.getElementById('sumTimeActual');
+    if (mpEl)   mpEl.textContent   = sumMpActual > 0   ? sumMpActual   : '—';
+    if (timeEl) timeEl.textContent = sumTimeActual > 0 ? sumTimeActual : '—';
+
+    // Tampilkan peringatan deviasi di modal
+    const devAlert = document.getElementById('deviationAlert');
+    if (devAlert) devAlert.style.display = hasDev ? '' : 'none';
+}
+
+// ── Save indicator ────────────────────────────────────────
+let saveTimer;
+function showSave(type, msg) {
+    const el  = document.getElementById('saveIndicator');
+    const cls = { saving:'saving', ok:'saved', err:'err' }[type];
+    const ico = { saving:'arrow-repeat spin', ok:'check-circle', err:'x-circle' }[type];
+    clearTimeout(saveTimer);
+    el.innerHTML = `<span class="save-pill ${cls}">
+        <i class="bi bi-${ico} me-1"></i>${msg}</span>`;
+    if (type !== 'saving') saveTimer = setTimeout(() => { el.innerHTML=''; }, 2500);
+}
+
+function openCompleteModal() {
+    recalcSummary();
+    new bootstrap.Modal(document.getElementById('completeModal')).show();
+}
+
+// Spin CSS
+const s = document.createElement('style');
+s.textContent = '.spin{animation:_sp .6s linear infinite;display:inline-block}'
+    + '@keyframes _sp{to{transform:rotate(360deg)}}';
+document.head.appendChild(s);
+
+// Init summary on load
+recalcSummary();
+</script>
 @endpush

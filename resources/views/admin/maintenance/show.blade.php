@@ -24,7 +24,7 @@
 {{-- ── HEADER ── --}}
 <div class="d-flex align-items-start justify-content-between mb-6 flex-wrap gap-3">
     <div class="d-flex align-items-center gap-3">
-        <a href="{{ route('admin.maintenance.record.index') }}" class="btn btn-sm btn-light">
+        <a href="{{ route('admin.records.index') }}" class="btn btn-sm btn-light">
             <i class="bi bi-arrow-left"></i>
         </a>
         <div>
@@ -37,13 +37,13 @@
     </div>
     <div class="d-flex gap-2 flex-wrap">
         @if($record->status === 'in_progress')
-        <a href="{{ route('admin.maintenance.record.work', $record->id) }}"
+        <a href="{{ route('admin.records.work', $record->id) }}"
            class="btn btn-warning">
             <i class="bi bi-pencil me-1"></i>Lanjut Kerjakan
         </a>
         @endif
         {{-- Tombol cetak/download report bisa ditambahkan di sini --}}
-        <a href="{{ route('admin.maintenance.record.index') }}" class="btn btn-light">
+        <a href="{{ route('admin.records.index') }}" class="btn btn-light">
             <i class="bi bi-list me-1"></i>Semua Record
         </a>
     </div>
@@ -328,7 +328,7 @@
                     @endif
                 </p>
                 <form method="POST"
-                    action="{{ route('admin.maintenance.record.validate', $record->id) }}">
+                    action="{{ route('admin.records.validate', $record->id) }}">
                     @csrf
                     <div class="mb-4">
                         <label class="form-label fw-semibold">Catatan Validasi</label>
