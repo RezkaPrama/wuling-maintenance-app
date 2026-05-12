@@ -230,7 +230,7 @@ class MaintenanceRecordWebController extends Controller
             // Update status schedule → in progress (tetap due/overdue sampai completed)
             DB::commit();
 
-            return redirect()->route('admin.maintenance.work', $recordId)
+            return redirect()->route('admin.records.work', $recordId)
                 ->with('success', "Record {$recordNumber} berhasil dibuat. Silakan isi check sheet.");
         } catch (\Exception $e) {
             DB::rollBack();
