@@ -105,17 +105,50 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth']], function () {
     // Pelaksanaan PM (Maintenance Record)
     // -----------------------------------------------------------------------------------------------------------------------
 
-    // ── Pelaksanaan PM (Maintenance Record) ────────────────────────────────
     Route::prefix('records')->name('admin.records.')->group(function () {
-        Route::get('/',                              [MaintenanceRecordWebController::class, 'index'])->name('index');
-        Route::get('/create',                        [MaintenanceRecordWebController::class, 'create'])->name('create');
-        Route::get('/from-qr',                       [MaintenanceRecordWebController::class, 'createFromQr'])->name('from-qr');
-        Route::post('/',                             [MaintenanceRecordWebController::class, 'store'])->name('store');
-        Route::get('/{id}',                         [MaintenanceRecordWebController::class, 'show'])->name('show');
-        Route::get('/{id}/work',                    [MaintenanceRecordWebController::class, 'work'])->name('work');
-        Route::put('/{recordId}/items/{itemId}',    [MaintenanceRecordWebController::class, 'updateItem'])->name('updateItem');
-        Route::post('/{id}/complete',               [MaintenanceRecordWebController::class, 'complete'])->name('complete');
-        Route::post('/{recordId}/upload-photo/{itemId?}', [MaintenanceRecordWebController::class, 'uploadPhoto'])->name('uploadPhoto');
-        Route::post('/{id}/validate',               [MaintenanceRecordWebController::class, 'validate'])->name('validate');
+
+        // ── List semua record ────────────────────────────────────────────
+        Route::get('/',            [MaintenanceRecordWebController::class, 'index'])->name('index');
+
+        // ── Buat record baru (dari daftar jadwal) ────────────────────────
+        Route::get('/create',      [MaintenanceRecordWebController::class, 'create'])->name('create');
+        Route::post('/',           [MaintenanceRecordWebController::class, 'store'])->name('store');
+
+        // ── FIX: Route khusus QR scan — harus SEBELUM /{id} ────────────
+        // URL target dari QR Code: GET /admin/records/from-qr?equipment_id=5
+        // Jika diletakkan setelah /{id}, Laravel akan tangkap 'from-qr' sebagai {id}
+        Route::get('/from-qr',     [MaintenanceRecordWebController::class, 'createFromQr'])->name('from-qr');
+
+        // ── Detail record (read-only, untuk checker/validator) ───────────
+        Route::get('/{id}',        [MaintenanceRecordWebController::class, 'show'])->name('show');
+
+        // ── Halaman pengerjaan check sheet (teknisi) ─────────────────────
+        Route::get('/{id}/work',   [MaintenanceRecordWebController::class, 'work'])->name('work');
+
+        // ── Complete: teknisi submit selesai ─────────────────────────────
+        Route::post('/{id}/complete',  [MaintenanceRecordWebController::class, 'complete'])->name('complete');
+
+        // ── Validasi: checker/validator approve atau reject ───────────────
+        Route::post('/{id}/validasi',  [MaintenanceRecordWebController::class, 'validasi'])->name('validasi');
+
+        // ── AJAX: autosave satu item check sheet ─────────────────────────
+        Route::put('/{recordId}/items/{itemId}', [MaintenanceRecordWebController::class, 'updateItem'])->name('items.update');
+
+        // ── AJAX: upload foto untuk satu item ────────────────────────────
+        Route::post('/{recordId}/photos/{itemId?}', [MaintenanceRecordWebController::class, 'uploadPhoto'])->name('photos.upload');
     });
+
+    // ── Pelaksanaan PM (Maintenance Record) ────────────────────────────────
+    // Route::prefix('records')->name('admin.records.')->group(function () {
+    //     Route::get('/',                              [MaintenanceRecordWebController::class, 'index'])->name('index');
+    //     Route::get('/create',                        [MaintenanceRecordWebController::class, 'create'])->name('create');
+    //     Route::get('/from-qr',                       [MaintenanceRecordWebController::class, 'createFromQr'])->name('from-qr');
+    //     Route::post('/',                             [MaintenanceRecordWebController::class, 'store'])->name('store');
+    //     Route::get('/{id}',                         [MaintenanceRecordWebController::class, 'show'])->name('show');
+    //     Route::get('/{id}/work',                    [MaintenanceRecordWebController::class, 'work'])->name('work');
+    //     Route::put('/{recordId}/items/{itemId}',    [MaintenanceRecordWebController::class, 'updateItem'])->name('updateItem');
+    //     Route::post('/{id}/complete',               [MaintenanceRecordWebController::class, 'complete'])->name('complete');
+    //     Route::post('/{recordId}/upload-photo/{itemId?}', [MaintenanceRecordWebController::class, 'uploadPhoto'])->name('uploadPhoto');
+    //     Route::post('/{id}/validate',               [MaintenanceRecordWebController::class, 'validate'])->name('validate');
+    // });
 });

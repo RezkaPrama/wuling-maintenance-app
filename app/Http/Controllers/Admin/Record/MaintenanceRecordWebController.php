@@ -164,20 +164,35 @@ class MaintenanceRecordWebController extends Controller
             'dueSchedules',
         ));
     }
-
+    
     public function createFromQr(Request $request)
     {
+        // ── Validasi: equipment_id wajib ada di query string ─────────────
         $equipmentId = $request->input('equipment_id');
 
-        $equipment = DB::table('equipment')->where('id', $equipmentId)->first();
-
-        if (!$equipment || $equipment->status === 'inactive') {
-            return redirect()->route('admin.records.create')
-                ->with('error', 'Equipment tidak ditemukan atau tidak aktif.');
+        if (!$equipmentId || !is_numeric($equipmentId)) {
+            return redirect()->route('admin.records.index')
+                ->with('error', 'QR Code tidak valid: equipment_id tidak ditemukan. Pastikan scan QR yang benar.');
         }
 
-        // Jadwal due/overdue untuk equipment ini saja
-        // Sertakan template_id supaya bisa langsung disimpan tanpa step konfirmasi
+        // ── Ambil data equipment ─────────────────────────────────────────
+        $equipment = DB::table('equipment')
+            ->where('id', (int) $equipmentId)
+            ->first();
+
+        // ── FIX: Pesan error lebih informatif ────────────────────────────
+        if (!$equipment) {
+            return redirect()->route('admin.records.index')
+                ->with('error', "Equipment dengan ID {$equipmentId} tidak ditemukan. Hubungi admin.");
+        }
+
+        if ($equipment->status === 'inactive') {
+            return redirect()->route('admin.records.index')
+                ->with('error', "Equipment [{$equipment->equipment_code}] {$equipment->equipment_name} sedang tidak aktif.");
+        }
+
+        // ── Ambil jadwal due/overdue untuk equipment ini ─────────────────
+        // LEFT JOIN ke template supaya tidak gagal jika template belum dibuat
         $schedules = DB::table('maintenance_schedules as ms')
             ->leftJoin('check_sheet_templates as ct', function ($join) {
                 $join->on('ct.equipment_id', '=', 'ms.equipment_id')
@@ -190,14 +205,16 @@ class MaintenanceRecordWebController extends Controller
                 'ms.next_maintenance',
                 'ms.last_maintenance',
                 'ms.status',
-                'ct.id as template_id',
+                'ct.id   as template_id',
+                'ct.template_name',
             )
-            ->where('ms.equipment_id', $equipmentId)
+            ->where('ms.equipment_id', (int) $equipmentId)
             ->whereIn('ms.status', ['due', 'overdue'])
             ->orderByRaw("CASE ms.status WHEN 'overdue' THEN 1 WHEN 'due' THEN 2 END")
             ->orderBy('ms.next_maintenance', 'asc')
             ->get();
 
+        // ── Render landing page QR ───────────────────────────────────────
         return view('admin.maintenance.qr_landing', compact('equipment', 'schedules'));
     }
 
