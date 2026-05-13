@@ -144,6 +144,8 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth']], function () {
 
         // ── AJAX: upload foto untuk satu item ────────────────────────────
         Route::post('/{recordId}/photos/{itemId?}', [MaintenanceRecordWebController::class, 'uploadPhoto'])->name('photos.upload');
+
+        Route::get('/{id}/export', [MaintenanceRecordWebController::class, 'export'])->name('export');
     });
 
     // ── Pelaksanaan PM (Maintenance Record) ────────────────────────────────

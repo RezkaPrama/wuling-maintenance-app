@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin\Record;
 
+use App\Exports\MaintenanceRecordExport;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -164,7 +165,7 @@ class MaintenanceRecordWebController extends Controller
             'dueSchedules',
         ));
     }
-    
+
     public function createFromQr(Request $request)
     {
         // ── Validasi: equipment_id wajib ada di query string ─────────────
@@ -352,7 +353,7 @@ class MaintenanceRecordWebController extends Controller
 
         // Hanya boleh edit jika in_progress
         if (!in_array($record->status, ['in_progress', 'rejected'])) {
-            return redirect()->route('admin.maintenance.show', $id)
+            return redirect()->route('admin.records.show', $id)
                 ->with('info', 'Record ini sudah tidak dapat diedit.');
         }
 
@@ -533,7 +534,7 @@ class MaintenanceRecordWebController extends Controller
             'updated_at' => now(),
         ]);
 
-        return redirect()->route('admin.maintenance.show', $id)
+        return redirect()->route('admin.records.show', $id)
             ->with('success', 'Record berhasil diselesaikan dan menunggu validasi checker.');
     }
 
@@ -578,7 +579,7 @@ class MaintenanceRecordWebController extends Controller
             ? 'Record berhasil divalidasi.'
             : 'Record dikembalikan untuk diperbaiki.';
 
-        return redirect()->route('admin.maintenance.show', $id)->with('success', $msg);
+        return redirect()->route('admin.records.show', $id)->with('success', $msg);
     }
 
     // ============================================================
@@ -640,5 +641,21 @@ class MaintenanceRecordWebController extends Controller
         $percent = $total > 0 ? round(($done / $total) * 100) : 0;
 
         return compact('total', 'done', 'percent');
+    }
+
+    public function export(Request $request, $id)
+    {
+        $record = DB::table('maintenance_records')->where('id', $id)->first();
+
+        if (!$record) {
+            return back()->with('error', 'Record tidak ditemukan.');
+        }
+
+        // Hanya record yang sudah selesai bisa di-export
+        if (!in_array($record->status, ['completed', 'validated'])) {
+            return back()->with('error', 'Export hanya tersedia untuk record dengan status Completed atau Validated.');
+        }
+
+        return (new MaintenanceRecordExport($id))->download();
     }
 }
