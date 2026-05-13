@@ -95,10 +95,18 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth']], function () {
     // -----------------------------------------------------------------------------------------------------------------------
 
     // ── Jadwal PM ──────────────────────────────────────────────────────────
-    // Jadwal PM
     Route::prefix('schedule')->name('admin.schedules.')->group(function () {
-        Route::get('/',     [MaintenanceScheduleWebController::class, 'index'])->name('index');
-        Route::get('/{id}', [MaintenanceScheduleWebController::class, 'show'])->name('show');
+
+        Route::get('/',                    [MaintenanceScheduleWebController::class, 'index'])->name('index');
+        Route::get('/create',              [MaintenanceScheduleWebController::class, 'create'])->name('create');
+        Route::post('/',                   [MaintenanceScheduleWebController::class, 'store'])->name('store');
+        Route::get('/{id}',                [MaintenanceScheduleWebController::class, 'show'])->name('show');
+        Route::get('/{id}/edit',           [MaintenanceScheduleWebController::class, 'edit'])->name('edit');
+        Route::put('/{id}',                [MaintenanceScheduleWebController::class, 'update'])->name('update');
+        Route::delete('/{id}',             [MaintenanceScheduleWebController::class, 'destroy'])->name('destroy');
+
+        // Recalculate semua status jadwal (bisa dipanggil manual atau dari scheduler)
+        Route::post('/recalculate-status', [MaintenanceScheduleWebController::class, 'recalculateStatus'])->name('recalculate');
     });
 
     // -----------------------------------------------------------------------------------------------------------------------

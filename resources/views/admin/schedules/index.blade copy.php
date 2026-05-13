@@ -144,23 +144,6 @@
         .pm-calendar td:hover .cal-event-tooltip {
             display: block;
         }
-
-        /* Tambahkan ini: */
-        @keyframes pulse-red {
-
-            0%,
-            100% {
-                opacity: 1
-            }
-
-            50% {
-                opacity: .5
-            }
-        }
-
-        .badge-pulse {
-            animation: pulse-red 1.8s ease-in-out infinite;
-        }
     </style>
 @endpush
 
@@ -169,64 +152,6 @@
     <div class="content d-flex flex-column flex-column-fluid" id="kt_content">
 
         @include('partials.toolbar')
-
-        <div class="d-flex align-items-center justify-content-between mb-6">
-            <div>
-                <h1 class="fs-2 fw-bold text-gray-900 mb-1">Jadwal Preventive Maintenance</h1>
-                <span class="text-muted fs-6">Kelola dan pantau jadwal PM seluruh equipment</span>
-            </div>
-            <div class="d-flex gap-2 align-items-center">
-                {{-- Navigasi bulan kalender --}}
-                @php
-                    $prevMonth = \Carbon\Carbon::parse($filterMonth . '-01')
-                        ->subMonth()
-                        ->format('Y-m');
-                    $nextMonth = \Carbon\Carbon::parse($filterMonth . '-01')
-                        ->addMonth()
-                        ->format('Y-m');
-                @endphp
-                <a href="{{ request()->fullUrlWithQuery(['filter_month' => $prevMonth]) }}"
-                    class="btn btn-sm btn-light-primary" data-bs-toggle="tooltip" title="Bulan Sebelumnya">
-                    <i class="bi bi-chevron-left"></i>
-                </a>
-                <span class="btn btn-sm btn-primary pe-none fw-bold">
-                    {{ \Carbon\Carbon::parse($filterMonth . '-01')->translatedFormat('F Y') }}
-                </span>
-                <a href="{{ request()->fullUrlWithQuery(['filter_month' => $nextMonth]) }}"
-                    class="btn btn-sm btn-light-primary" data-bs-toggle="tooltip" title="Bulan Berikutnya">
-                    <i class="bi bi-chevron-right"></i>
-                </a>
-
-                {{-- Divider --}}
-                <div class="separator separator-vertical mx-1"
-                    style="height:28px; width:1px; background:var(--bs-gray-300);"></div>
-
-                {{-- Recalculate status --}}
-                <form action="{{ route('admin.schedules.recalculate') }}" method="POST" class="d-inline"
-                    id="form-recalculate">
-                    @csrf
-                    <button type="button" class="btn btn-sm btn-light-warning" id="btn-recalculate"
-                        data-bs-toggle="tooltip" title="Update status semua jadwal berdasarkan tanggal hari ini">
-                        <i class="bi bi-arrow-clockwise me-1"></i>Sync Status
-                    </button>
-                </form>
-
-                {{-- Tambah jadwal baru --}}
-                <a href="{{ route('admin.schedules.create') }}" class="btn btn-sm btn-primary">
-                    <i class="bi bi-plus-circle me-1"></i>Tambah Jadwal PM
-                </a>
-            </div>
-        </div>
-
-        {{-- Flash messages --}}
-        @foreach (['success', 'error', 'info'] as $type)
-            @if (session($type))
-                <div class="alert alert-{{ $type === 'error' ? 'danger' : $type }} d-flex align-items-center p-4 mb-5">
-                    <i class="bi bi-{{ $type === 'error' ? 'x' : 'check' }}-circle fs-2 me-3"></i>
-                    <span>{{ session($type) }}</span>
-                </div>
-            @endif
-        @endforeach
 
         <div class="post d-flex flex-column-fluid" id="kt_post">
             <div id="kt_content_container" class="container-xxl">
@@ -548,11 +473,6 @@
                                                             class="btn btn-sm btn-light-primary">
                                                             <i class="bi bi-eye me-1"></i>Detail
                                                         </a>
-                                                        <a href="{{ route('admin.schedules.edit', $s->id) }}"
-                                                            class="btn btn-sm btn-light-secondary btn-icon"
-                                                            data-bs-toggle="tooltip" title="Edit Jadwal">
-                                                            <i class="bi bi-pencil"></i>
-                                                        </a>
                                                         @if (in_array($s->status, ['due', 'overdue']))
                                                             <a href="{{ route('admin.records.create', ['schedule_id' => $s->id]) }}"
                                                                 class="btn btn-sm btn-danger">
@@ -610,56 +530,3 @@
 
 
 @endsection
-
-@push('scripts')
-    <script>
-        document.getElementById('btn-recalculate').addEventListener('click', function() {
-            Swal.fire({
-                title: 'Sync Status Jadwal PM?',
-                html: `
-            <div class="text-muted fs-6">
-                Sistem akan menghitung ulang status semua jadwal PM
-                berdasarkan tanggal hari ini.
-                <div class="mt-3 d-flex flex-column gap-2 text-start">
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="badge badge-light-danger px-2">Overdue</span>
-                        <span class="fs-7">Next PM sudah terlewati</span>
-                    </div>
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="badge badge-light-warning px-2">Due</span>
-                        <span class="fs-7">≤ 14 hari sebelum jadwal</span>
-                    </div>
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="badge badge-light-info px-2">Pending</span>
-                        <span class="fs-7">Masih lebih dari 14 hari</span>
-                    </div>
-                </div>
-            </div>
-        `,
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonText: '<i class="bi bi-arrow-clockwise me-1"></i>Ya, Sync Sekarang',
-                cancelButtonText: 'Batal',
-                confirmButtonColor: '#f6a723',
-                cancelButtonColor: '#f5f8fa',
-                customClass: {
-                    confirmButton: 'btn btn-warning fw-bold px-6',
-                    cancelButton: 'btn btn-light fw-bold px-6',
-                    popup: 'fs-6',
-                },
-                buttonsStyling: false,
-                reverseButtons: true,
-                focusConfirm: false,
-            }).then(function(result) {
-                if (result.isConfirmed) {
-                    // Tampilkan loading state di tombol
-                    const btn = document.getElementById('btn-recalculate');
-                    btn.disabled = true;
-                    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Syncing...';
-
-                    document.getElementById('form-recalculate').submit();
-                }
-            });
-        });
-    </script>
-@endpush
