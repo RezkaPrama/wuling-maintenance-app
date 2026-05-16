@@ -3,214 +3,534 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\CheckSheetTemplates;
-use App\Models\MaintenanceRecordItems;
-use App\Models\MaintenanceRecords;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class MaintenanceRecordController extends Controller
 {
+    // ============================================================
+    // INDEX — Daftar semua maintenance record (dengan filter & stats)
+    // ============================================================
     public function index(Request $request)
     {
-        $query = MaintenanceRecords::with(['equipment', 'technician']);
-        
-        // Filter by technician
-        if ($request->has('technician_id')) {
-            $query->where('technician_id', $request->technician_id);
+        $search       = $request->input('search');
+        $filterStatus = $request->input('filter_status');
+        $filterCycle  = $request->input('filter_cycle');
+        $filterMonth  = $request->input('filter_month');
+        $perPage      = $request->input('per_page', 25);
+
+        $query = DB::table('maintenance_records as mr')
+            ->join('equipment as e', 'mr.equipment_id', '=', 'e.id')
+            ->join('users as tech', 'mr.technician_id', '=', 'tech.id')
+            ->leftJoin('users as checker', 'mr.checker_id', '=', 'checker.id')
+            ->leftJoin('users as validator', 'mr.validator_id', '=', 'validator.id')
+            ->leftJoin('check_sheet_templates as cst', 'mr.template_id', '=', 'cst.id')
+            ->select(
+                'mr.id',
+                'mr.record_number',
+                'mr.maintenance_date',
+                'mr.start_time',
+                'mr.end_time',
+                'mr.status',
+                'mr.notes',
+                'cst.pm_cycle',
+                'cst.template_name',
+                'e.equipment_code',
+                'e.equipment_name',
+                'e.etm_group',
+                'tech.name as technician_name',
+                'checker.name as checker_name',
+                'validator.name as validator_name',
+            );
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('mr.record_number', 'LIKE', "%{$search}%")
+                    ->orWhere('e.equipment_name', 'LIKE', "%{$search}%")
+                    ->orWhere('e.equipment_code', 'LIKE', "%{$search}%")
+                    ->orWhere('tech.name', 'LIKE', "%{$search}%");
+            });
         }
-        
-        // Filter by status
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
+
+        if ($filterStatus && $filterStatus !== 'all') {
+            $query->where('mr.status', $filterStatus);
         }
-        
-        // Filter by date range
-        if ($request->has('date_from')) {
-            $query->whereDate('maintenance_date', '>=', $request->date_from);
+
+        if ($filterCycle && $filterCycle !== 'all') {
+            $query->where('cst.pm_cycle', $filterCycle);
         }
-        
-        if ($request->has('date_to')) {
-            $query->whereDate('maintenance_date', '<=', $request->date_to);
+
+        if ($filterMonth) {
+            [$y, $m] = explode('-', $filterMonth);
+            $query->whereYear('mr.maintenance_date', $y)
+                ->whereMonth('mr.maintenance_date', $m);
         }
-        
-        $records = $query->latest()->paginate(10);
-        
+
+        $query->orderByRaw("CASE mr.status
+                WHEN 'in_progress' THEN 1
+                WHEN 'completed'   THEN 2
+                WHEN 'validated'   THEN 3
+                WHEN 'rejected'    THEN 4
+                ELSE 5 END")
+            ->orderBy('mr.maintenance_date', 'desc');
+
+        $records = $query->paginate($perPage)->appends($request->query());
+
+        // Stat cards
+        $stats = DB::table('maintenance_records')
+            ->selectRaw("
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
+                SUM(CASE WHEN status = 'completed'   THEN 1 ELSE 0 END) as completed,
+                SUM(CASE WHEN status = 'validated'   THEN 1 ELSE 0 END) as validated,
+                SUM(CASE WHEN status = 'rejected'    THEN 1 ELSE 0 END) as rejected
+            ")
+            ->first();
+
         return response()->json([
             'success' => true,
-            'data' => $records
+            'data'    => $records,
+            'stats'   => $stats,
         ]);
     }
 
+    // ============================================================
+    // STORE — Buat record baru
+    // ============================================================
     public function store(Request $request)
     {
         $request->validate([
-            'equipment_id' => 'required|exists:equipment,id',
-            'schedule_id' => 'required|exists:maintenance_schedules,id',
-            'template_id' => 'required|exists:check_sheet_templates,id',
+            'schedule_id'      => 'required|exists:maintenance_schedules,id',
+            'template_id'      => 'required|exists:check_sheet_templates,id',
             'maintenance_date' => 'required|date',
-            'start_time' => 'required|date_format:H:i',
+            'start_time'       => 'required',
+            'notes'            => 'nullable|string|max:1000',
         ]);
 
-        $record = MaintenanceRecords::create([
-            'equipment_id' => $request->equipment_id,
-            'schedule_id' => $request->schedule_id,
-            'template_id' => $request->template_id,
-            'technician_id' => auth()->id(),
-            'maintenance_date' => $request->maintenance_date,
-            'start_time' => $request->start_time,
-            'status' => 'in_progress',
-        ]);
+        $schedule = DB::table('maintenance_schedules')->where('id', $request->schedule_id)->first();
 
-        // Create record items from template
-        $template = CheckSheetTemplates::with('checkSheetItems')->find($request->template_id);
-        foreach ($template->checkSheetItems as $item) {
-            MaintenanceRecordItems::create([
-                'maintenance_record_id' => $record->id,
-                'check_item_id' => $item->id,
-                'status' => 'pending',
+        // Generate record_number: PM-YYYYMMDD-XXXX
+        $dateStr      = now()->format('Ymd');
+        $count        = DB::table('maintenance_records')
+            ->whereDate('created_at', now()->toDateString())
+            ->count() + 1;
+        $recordNumber = 'PM-' . $dateStr . '-' . str_pad($count, 4, '0', STR_PAD_LEFT);
+
+        DB::beginTransaction();
+        try {
+            $recordId = DB::table('maintenance_records')->insertGetId([
+                'record_number'    => $recordNumber,
+                'equipment_id'     => $schedule->equipment_id,
+                'schedule_id'      => $request->schedule_id,
+                'template_id'      => $request->template_id,
+                'technician_id'    => Auth::id(),
+                'maintenance_date' => $request->maintenance_date,
+                'start_time'       => $request->start_time,
+                'status'           => 'in_progress',
+                'notes'            => $request->notes,
+                'created_at'       => now(),
+                'updated_at'       => now(),
             ]);
+
+            // Salin items dari template
+            $checkItems = DB::table('check_sheet_items')
+                ->where('template_id', $request->template_id)
+                ->where('is_active', 1)
+                ->orderBy('item_number')
+                ->get();
+
+            $itemsToInsert = [];
+            foreach ($checkItems as $item) {
+                $itemsToInsert[] = [
+                    'maintenance_record_id' => $recordId,
+                    'check_item_id'         => $item->id,
+                    'status'                => 'pending',
+                    'created_at'            => now(),
+                    'updated_at'            => now(),
+                ];
+            }
+
+            if (!empty($itemsToInsert)) {
+                DB::table('maintenance_record_items')->insert($itemsToInsert);
+            }
+
+            DB::commit();
+
+            $record = $this->getRecordDetail($recordId);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Record {$recordNumber} berhasil dibuat.",
+                'data'    => $record,
+            ], 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal membuat record: ' . $e->getMessage(),
+            ], 500);
         }
-
-        $record->load(['equipment', 'recordItems.checkItem']);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Maintenance record created successfully',
-            'data' => $record
-        ], 201);
     }
 
+    // ============================================================
+    // SHOW — Detail record
+    // ============================================================
     public function show($id)
     {
-        $record = MaintenanceRecords::with([
-            'equipment',
-            'schedule',
-            'template',
-            'technician',
-            'checker',
-            'validator',
-            'recordItems.checkItem'
-        ])->findOrFail($id);
+        $record = $this->getRecordDetail($id);
+
+        if (!$record) {
+            return response()->json(['success' => false, 'message' => 'Record tidak ditemukan.'], 404);
+        }
+
+        $items = $this->getRecordItems($id);
+        $progress = $this->calculateProgress($items);
 
         return response()->json([
-            'success' => true,
-            'data' => $record
+            'success'  => true,
+            'data'     => $record,
+            'items'    => $items,
+            'progress' => $progress,
         ]);
     }
 
+    // ============================================================
+    // FROM QR — Landing page QR scan (data untuk mobile)
+    // ============================================================
+    public function fromQr(Request $request)
+    {
+        $equipmentId = $request->input('equipment_id');
+
+        if (!$equipmentId || !is_numeric($equipmentId)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'QR Code tidak valid: equipment_id tidak ditemukan.',
+            ], 422);
+        }
+
+        $equipment = DB::table('equipment')->where('id', (int) $equipmentId)->first();
+
+        if (!$equipment) {
+            return response()->json([
+                'success' => false,
+                'message' => "Equipment dengan ID {$equipmentId} tidak ditemukan.",
+            ], 404);
+        }
+
+        if ($equipment->status === 'inactive') {
+            return response()->json([
+                'success' => false,
+                'message' => "Equipment [{$equipment->equipment_code}] {$equipment->equipment_name} sedang tidak aktif.",
+            ], 422);
+        }
+
+        // Jadwal due/overdue beserta template aktif
+        $schedules = DB::table('maintenance_schedules as ms')
+            ->leftJoin('check_sheet_templates as ct', function ($join) {
+                $join->on('ct.equipment_id', '=', 'ms.equipment_id')
+                    ->whereColumn('ct.pm_cycle', 'ms.pm_cycle')
+                    ->where('ct.is_active', 1);
+            })
+            ->select(
+                'ms.id',
+                'ms.pm_cycle',
+                'ms.next_maintenance',
+                'ms.last_maintenance',
+                'ms.status',
+                'ct.id as template_id',
+                'ct.template_name',
+            )
+            ->where('ms.equipment_id', (int) $equipmentId)
+            ->whereIn('ms.status', ['due', 'overdue'])
+            ->orderByRaw("CASE ms.status WHEN 'overdue' THEN 1 WHEN 'due' THEN 2 END")
+            ->orderBy('ms.next_maintenance', 'asc')
+            ->get();
+
+        return response()->json([
+            'success'   => true,
+            'equipment' => $equipment,
+            'schedules' => $schedules,
+        ]);
+    }
+
+    // ============================================================
+    // UPDATE ITEM — Autosave 1 item check sheet (AJAX)
+    // ============================================================
     public function updateItem(Request $request, $recordId, $itemId)
     {
         $request->validate([
-            'status' => 'required|in:ok,ng,na,pending',
-            'remarks' => 'nullable|string',
-            'measurements' => 'nullable|array',
-            'requires_action' => 'boolean',
-            'action_required' => 'nullable|string',
+            'status'               => 'required|in:ok,ng,na,pending',
+            'remarks'              => 'nullable|string|max:500',
+            'measurements'         => 'nullable|array',
+            'requires_action'      => 'nullable|boolean',
+            'action_required'      => 'nullable|string|max:500',
+            'actual_man_power'     => 'nullable|integer|min:1|max:99',
+            'actual_time_minutes'  => 'nullable|integer|min:1|max:9999',
         ]);
 
-        $recordItem = MaintenanceRecordItems::where('maintenance_record_id', $recordId)
+        $item = DB::table('maintenance_record_items')
             ->where('id', $itemId)
-            ->firstOrFail();
+            ->where('maintenance_record_id', $recordId)
+            ->first();
 
-        $recordItem->update($request->only([
-            'status', 'remarks', 'measurements', 'requires_action', 'action_required'
-        ]));
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Record item updated successfully',
-            'data' => $recordItem
-        ]);
-    }
-
-    public function complete(Request $request, $id)
-    {
-        $record = MaintenanceRecords::findOrFail($id);
-        
-        // Check if all items are completed
-        $pendingItems = $record->recordItems()->where('status', 'pending')->count();
-        
-        if ($pendingItems > 0) {
-            return response()->json([
-                'success' => false,
-                'message' => "Cannot complete maintenance. {$pendingItems} items are still pending."
-            ], 400);
+        if (!$item) {
+            return response()->json(['success' => false, 'message' => 'Item tidak ditemukan.'], 404);
         }
 
-        $record->update([
-            'end_time' => $request->end_time ?? now()->format('H:i'),
-            'status' => 'completed',
-            'notes' => $request->notes,
-        ]);
+        DB::table('maintenance_record_items')
+            ->where('id', $itemId)
+            ->update([
+                'status'               => $request->status,
+                'remarks'              => $request->remarks,
+                'measurements'         => $request->measurements ? json_encode($request->measurements) : null,
+                'requires_action'      => $request->boolean('requires_action'),
+                'action_required'      => $request->action_required,
+                'actual_man_power'     => $request->actual_man_power,
+                'actual_time_minutes'  => $request->actual_time_minutes,
+                'updated_at'           => now(),
+            ]);
 
-        // Update schedule status
-        $record->schedule->update([
-            'status' => 'completed',
-            'last_maintenance' => $record->maintenance_date,
-            'next_maintenance' => $this->calculateNextMaintenance($record->schedule),
-        ]);
+        // Hitung ulang progress
+        $items   = DB::table('maintenance_record_items')
+            ->where('maintenance_record_id', $recordId)
+            ->get();
+        $total   = $items->count();
+        $done    = $items->whereIn('status', ['ok', 'ng', 'na'])->count();
+        $percent = $total > 0 ? round(($done / $total) * 100) : 0;
 
         return response()->json([
-            'success' => true,
-            'message' => 'Maintenance completed successfully',
-            'data' => $record
+            'success'  => true,
+            'message'  => 'Item berhasil disimpan.',
+            'progress' => compact('total', 'done', 'percent'),
         ]);
     }
 
+    // ============================================================
+    // UPLOAD PHOTO — Upload foto untuk item tertentu
+    // ============================================================
     public function uploadPhoto(Request $request, $recordId, $itemId = null)
     {
         $request->validate([
-            'photo' => 'required|image|mimes:jpeg,png,jpg|max:5120', // 5MB max
+            'photo'   => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
+            'item_id' => 'nullable|exists:maintenance_record_items,id',
         ]);
 
-        $file = $request->file('photo');
-        $filename = time() . '_' . $file->getClientOriginalName();
-        $path = $file->storeAs('maintenance_photos', $filename, 'public');
+        $targetItemId = $itemId ?? $request->input('item_id');
 
-        $photoData = [
-            'filename' => $filename,
-            'path' => $path,
-            'url' => asset('storage/' . $path),
-            'uploaded_at' => now(),
+        if (!$targetItemId) {
+            return response()->json(['success' => false, 'message' => 'Item ID diperlukan.'], 422);
+        }
+
+        $item = DB::table('maintenance_record_items')
+            ->where('id', $targetItemId)
+            ->where('maintenance_record_id', $recordId)
+            ->first();
+
+        if (!$item) {
+            return response()->json(['success' => false, 'message' => 'Item tidak ditemukan.'], 404);
+        }
+
+        $path   = $request->file('photo')->store("maintenance/{$recordId}", 'public');
+        $photos = $item->photos ? json_decode($item->photos, true) : [];
+        $photos[] = [
+            'path'        => $path,
+            'url'         => Storage::url($path),
+            'uploaded_at' => now()->toDateTimeString(),
         ];
 
-        if ($itemId) {
-            // Photo for specific item
-            $recordItem = MaintenanceRecordItems::where('maintenance_record_id', $recordId)
-                ->where('id', $itemId)
-                ->firstOrFail();
-            
-            $photos = $recordItem->photos ?? [];
-            $photos[] = $photoData;
-            $recordItem->update(['photos' => $photos]);
-        } else {
-            // General photo for maintenance record
-            $record = MaintenanceRecords::findOrFail($recordId);
-            $attachments = $record->attachments ?? [];
-            $attachments[] = $photoData;
-            $record->update(['attachments' => $attachments]);
-        }
+        DB::table('maintenance_record_items')
+            ->where('id', $targetItemId)
+            ->update([
+                'photos'     => json_encode($photos),
+                'updated_at' => now(),
+            ]);
 
         return response()->json([
             'success' => true,
-            'message' => 'Photo uploaded successfully',
-            'data' => $photoData
+            'photo'   => [
+                'path' => $path,
+                'url'  => Storage::url($path),
+            ],
         ]);
     }
 
-    private function calculateNextMaintenance($schedule)
+    // ============================================================
+    // COMPLETE — Teknisi submit selesai
+    // ============================================================
+    public function complete(Request $request, $id)
     {
-        $lastMaintenance = $schedule->last_maintenance ?? now();
-        
-        switch ($schedule->pm_cycle) {
-            case '6M':
-                return $lastMaintenance->addMonths(6);
-            case '1Y':
-                return $lastMaintenance->addYear();
-            case '2Y':
-                return $lastMaintenance->addYears(2);
-            default:
-                return $lastMaintenance->addYear();
+        $record = DB::table('maintenance_records')->where('id', $id)->first();
+
+        if (!$record) {
+            return response()->json(['success' => false, 'message' => 'Record tidak ditemukan.'], 404);
         }
+
+        if ($record->status !== 'in_progress') {
+            return response()->json(['success' => false, 'message' => 'Record tidak dapat diselesaikan.'], 422);
+        }
+
+        $pendingCount = DB::table('maintenance_record_items')
+            ->where('maintenance_record_id', $id)
+            ->where('status', 'pending')
+            ->count();
+
+        if ($pendingCount > 0) {
+            return response()->json([
+                'success' => false,
+                'message' => "Masih ada {$pendingCount} item yang belum diisi.",
+            ], 422);
+        }
+
+        DB::table('maintenance_records')->where('id', $id)->update([
+            'status'     => 'completed',
+            'end_time'   => now()->format('H:i:s'),
+            'updated_at' => now(),
+        ]);
+
+        // Catatan: schedule TIDAK diupdate di sini.
+        // Schedule diupdate saat validasi (status → validated), sama seperti web controller.
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Record berhasil diselesaikan dan menunggu validasi checker.',
+            'data'    => DB::table('maintenance_records')->where('id', $id)->first(),
+        ]);
+    }
+
+    // ============================================================
+    // VALIDASI — Checker/Validator approve atau reject
+    // ============================================================
+    public function validasi(Request $request, $id)
+    {
+        $request->validate([
+            'action' => 'required|in:validate,reject',
+            'notes'  => 'nullable|string|max:500',
+        ]);
+
+        $record = DB::table('maintenance_records')->where('id', $id)->first();
+
+        if (!$record) {
+            return response()->json(['success' => false, 'message' => 'Record tidak ditemukan.'], 404);
+        }
+
+        if (!in_array($record->status, ['completed', 'validated'])) {
+            return response()->json(['success' => false, 'message' => 'Record tidak dapat divalidasi.'], 422);
+        }
+
+        $newStatus = $request->action === 'validate' ? 'validated' : 'rejected';
+        $field     = $record->status === 'completed' ? 'checker_id' : 'validator_id';
+
+        DB::table('maintenance_records')->where('id', $id)->update([
+            'status'     => $newStatus,
+            $field       => Auth::id(),
+            'notes'      => $request->notes ?? $record->notes,
+            'updated_at' => now(),
+        ]);
+
+        // Jika validated → update schedule
+        if ($newStatus === 'validated') {
+            DB::table('maintenance_schedules')
+                ->where('id', $record->schedule_id)
+                ->update([
+                    'status'           => 'completed',
+                    'last_maintenance' => $record->maintenance_date,
+                    'updated_at'       => now(),
+                ]);
+        }
+
+        $msg = $newStatus === 'validated'
+            ? 'Record berhasil divalidasi.'
+            : 'Record dikembalikan untuk diperbaiki.';
+
+        return response()->json([
+            'success' => true,
+            'message' => $msg,
+            'data'    => DB::table('maintenance_records')->where('id', $id)->first(),
+        ]);
+    }
+
+    // ============================================================
+    // PRIVATE HELPERS
+    // ============================================================
+    private function getRecordDetail($id)
+    {
+        return DB::table('maintenance_records as mr')
+            ->join('equipment as e', 'mr.equipment_id', '=', 'e.id')
+            ->join('maintenance_schedules as ms', 'mr.schedule_id', '=', 'ms.id')
+            ->join('check_sheet_templates as cst', 'mr.template_id', '=', 'cst.id')
+            ->join('users as tech', 'mr.technician_id', '=', 'tech.id')
+            ->leftJoin('users as checker', 'mr.checker_id', '=', 'checker.id')
+            ->leftJoin('users as validator', 'mr.validator_id', '=', 'validator.id')
+            ->select(
+                'mr.id',
+                'mr.record_number',
+                'mr.maintenance_date',
+                'mr.start_time',
+                'mr.end_time',
+                'mr.status',
+                'mr.notes',
+                'mr.attachments',
+                'cst.pm_cycle',
+                'cst.template_name',
+                'cst.doc_number',
+                'e.id as equipment_id',
+                'e.equipment_code',
+                'e.equipment_name',
+                'e.etm_group',
+                'e.location',
+                'ms.id as schedule_id',
+                'ms.next_maintenance',
+                'tech.name as technician_name',
+                'tech.email as technician_email',
+                'checker.name as checker_name',
+                'validator.name as validator_name',
+            )
+            ->where('mr.id', $id)
+            ->first();
+    }
+
+    private function getRecordItems($recordId)
+    {
+        return DB::table('maintenance_record_items as mri')
+            ->join('check_sheet_items as csi', 'mri.check_item_id', '=', 'csi.id')
+            ->select(
+                'mri.id',
+                'mri.status',
+                'mri.remarks',
+                'mri.measurements',
+                'mri.photos',
+                'mri.requires_action',
+                'mri.action_required',
+                'csi.item_number',
+                'csi.sub_equipment',
+                'csi.check_item',
+                'csi.maintenance_standard',
+                'csi.pm_types',
+                'csi.man_power',
+                'csi.time_minutes',
+            )
+            ->where('mri.maintenance_record_id', $recordId)
+            ->orderBy('csi.item_number')
+            ->get()
+            ->map(function ($item) {
+                $item->measurements = $item->measurements ? json_decode($item->measurements, true) : null;
+                $item->photos       = $item->photos ? json_decode($item->photos, true) : [];
+                $item->pm_types     = $item->pm_types ? json_decode($item->pm_types, true) : [];
+                return $item;
+            });
+    }
+
+    private function calculateProgress($items)
+    {
+        $total   = $items->count();
+        $done    = $items->whereIn('status', ['ok', 'ng', 'na'])->count();
+        $ok      = $items->where('status', 'ok')->count();
+        $ng      = $items->where('status', 'ng')->count();
+        $pending = $items->where('status', 'pending')->count();
+        $percent = $total > 0 ? round(($done / $total) * 100) : 0;
+
+        return compact('total', 'done', 'ok', 'ng', 'pending', 'percent');
     }
 }

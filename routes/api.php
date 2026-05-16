@@ -52,14 +52,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/equipment/{equipmentId}/check-sheet-template/{pmCycle}', [CheckSheetController::class, 'getTemplate']);
     });
 
-    // Maintenance Record Routes 
+    // Maintenance Record Routes
     Route::prefix('maintenance-record')->group(function () {
-        Route::get('/maintenance-records', [MaintenanceRecordController::class, 'index']);
-        Route::post('/maintenance-records', [MaintenanceRecordController::class, 'store']);
-        Route::get('/maintenance-records/{id}', [MaintenanceRecordController::class, 'show']);
-        Route::put('/maintenance-records/{recordId}/items/{itemId}', [MaintenanceRecordController::class, 'updateItem']);
-        Route::post('/maintenance-records/{id}/complete', [MaintenanceRecordController::class, 'complete']);
-        Route::post('/maintenance-records/{recordId}/upload-photo/{itemId?}', [MaintenanceRecordController::class, 'uploadPhoto']);
+        Route::get('/maintenance-records',                              [MaintenanceRecordController::class, 'index']);
+        Route::post('/maintenance-records',                             [MaintenanceRecordController::class, 'store']);
+        Route::get('/maintenance-records/from-qr',                     [MaintenanceRecordController::class, 'fromQr']);     // ← harus SEBELUM /{id}
+        Route::get('/maintenance-records/{id}',                        [MaintenanceRecordController::class, 'show']);
+        Route::put('/maintenance-records/{recordId}/items/{itemId}',   [MaintenanceRecordController::class, 'updateItem']);
+        Route::post('/maintenance-records/{recordId}/photos/{itemId?}',[MaintenanceRecordController::class, 'uploadPhoto']);
+        Route::post('/maintenance-records/{id}/complete',              [MaintenanceRecordController::class, 'complete']);
+        Route::post('/maintenance-records/{id}/validasi',              [MaintenanceRecordController::class, 'validasi']);
     });
 
     // Report Routes 
