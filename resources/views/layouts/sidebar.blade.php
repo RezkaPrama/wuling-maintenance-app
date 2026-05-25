@@ -342,7 +342,7 @@
                     </span>
                     <div class="menu-sub menu-sub-accordion">
 
-                        @can('users.index')
+                        <!-- @can('users.index') -->
                             <div class="menu-item">
                                 <a class="menu-link {{ Request::is('admin/user*') ? ' active' : '' }}"
                                     href="{{ route('admin.user.index') }}">
@@ -352,7 +352,7 @@
                                     <span class="menu-title">User</span>
                                 </a>
                             </div>
-                        @endcan
+                        <!-- @endcan -->
 
                         @can('roles.index')
                             <div class="menu-item">

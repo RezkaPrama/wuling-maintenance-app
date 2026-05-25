@@ -258,16 +258,72 @@ class MaintenanceRecordController extends Controller
     // ============================================================
     // UPDATE ITEM — Autosave 1 item check sheet (AJAX)
     // ============================================================
+    // public function updateItem(Request $request, $recordId, $itemId)
+    // {
+    //     $request->validate([
+    //         'status'               => 'required|in:ok,ng,na,pending',
+    //         'remarks'              => 'nullable|string|max:500',
+    //         'measurements'         => 'nullable|array',
+    //         'requires_action'      => 'nullable|boolean',
+    //         'action_required'      => 'nullable|string|max:500',
+    //         'actual_man_power'     => 'nullable|integer|min:1|max:99',
+    //         'actual_time_minutes'  => 'nullable|integer|min:1|max:9999',
+    //     ]);
+
+    //     $item = DB::table('maintenance_record_items')
+    //         ->where('id', $itemId)
+    //         ->where('maintenance_record_id', $recordId)
+    //         ->first();
+
+    //     if (!$item) {
+    //         return response()->json(['success' => false, 'message' => 'Item tidak ditemukan.'], 404);
+    //     }
+
+    //     DB::table('maintenance_record_items')
+    //         ->where('id', $itemId)
+    //         ->update([
+    //             'status'               => $request->status,
+    //             'remarks'              => $request->remarks,
+    //             'measurements'         => $request->measurements ? json_encode($request->measurements) : null,
+    //             'requires_action'      => $request->boolean('requires_action'),
+    //             'action_required'      => $request->action_required,
+    //             'actual_man_power'     => $request->actual_man_power,
+    //             'actual_time_minutes'  => $request->actual_time_minutes,
+    //             'updated_at'           => now(),
+    //         ]);
+
+    //     // Hitung ulang progress
+    //     $items   = DB::table('maintenance_record_items')
+    //         ->where('maintenance_record_id', $recordId)
+    //         ->get();
+    //     $total   = $items->count();
+    //     $done    = $items->whereIn('status', ['ok', 'ng', 'na'])->count();
+    //     $percent = $total > 0 ? round(($done / $total) * 100) : 0;
+
+    //     return response()->json([
+    //         'success'  => true,
+    //         'message'  => 'Item berhasil disimpan.',
+    //         'progress' => compact('total', 'done', 'percent'),
+    //     ]);
+    // }
+
     public function updateItem(Request $request, $recordId, $itemId)
     {
         $request->validate([
-            'status'               => 'required|in:ok,ng,na,pending',
-            'remarks'              => 'nullable|string|max:500',
-            'measurements'         => 'nullable|array',
-            'requires_action'      => 'nullable|boolean',
-            'action_required'      => 'nullable|string|max:500',
-            'actual_man_power'     => 'nullable|integer|min:1|max:99',
-            'actual_time_minutes'  => 'nullable|integer|min:1|max:9999',
+            'status'                    => 'required|in:ok,ng,na,pending',
+            'remarks'                   => 'nullable|string|max:500',
+
+            // measurements adalah JSON object bebas:
+            //   { value?: string, done_pm_types?: string[] }
+            'measurements'              => 'nullable|array',
+            'measurements.value'        => 'nullable|string|max:255',
+            'measurements.done_pm_types'=> 'nullable|array',
+            'measurements.done_pm_types.*' => 'string|max:50',
+
+            'requires_action'           => 'nullable|boolean',
+            'action_required'           => 'nullable|string|max:500',
+            'actual_man_power'          => 'nullable|integer|min:1|max:99',
+            'actual_time_minutes'       => 'nullable|integer|min:1|max:9999',
         ]);
 
         $item = DB::table('maintenance_record_items')
@@ -279,12 +335,17 @@ class MaintenanceRecordController extends Controller
             return response()->json(['success' => false, 'message' => 'Item tidak ditemukan.'], 404);
         }
 
+        // Merge measurements baru dengan yang lama (agar tidak kehilangan field lain)
+        $existingMeasurements = $item->measurements ? json_decode($item->measurements, true) : [];
+        $newMeasurements      = $request->input('measurements', []);
+        $mergedMeasurements   = array_merge($existingMeasurements, $newMeasurements);
+
         DB::table('maintenance_record_items')
             ->where('id', $itemId)
             ->update([
                 'status'               => $request->status,
                 'remarks'              => $request->remarks,
-                'measurements'         => $request->measurements ? json_encode($request->measurements) : null,
+                'measurements'         => !empty($mergedMeasurements) ? json_encode($mergedMeasurements) : null,
                 'requires_action'      => $request->boolean('requires_action'),
                 'action_required'      => $request->action_required,
                 'actual_man_power'     => $request->actual_man_power,
