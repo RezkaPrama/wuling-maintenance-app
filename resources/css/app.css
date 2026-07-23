@@ -1,0 +1,36 @@
+/* ============================================================
+   Sembunyikan sidebar (aside) khusus untuk halaman Dashboard.
+   Class 'kt-hide-aside' ditambahkan/dihapus dari <body> lewat
+   React (lihat CategoryDashboardPage.jsx), BUKAN dari Blade,
+   karena Blade tidak tahu halaman React mana yang sedang aktif.
+
+   Metronic dengan body class "aside-fixed" bisa reserve ruang
+   sidebar lewat beberapa cara berbeda tergantung versinya:
+   margin-left di .wrapper, ATAU padding-left di .page, ATAU
+   left di elemen fixed seperti header/toolbar/footer. Supaya
+   tidak perlu tebak-tebakan lagi, override ini menyasar SEMUA
+   kombinasi elemen + properti yang biasa dipakai sekaligus.
+   ============================================================ */
+body.kt-hide-aside {
+    --kt-aside-width: 0px !important;
+    --kt-aside-width-lg: 0px !important;
+}
+
+body.kt-hide-aside #kt_aside,
+body.kt-hide-aside #kt_aside_mobile_toggle {
+    display: none !important;
+}
+
+body.kt-hide-aside .page,
+body.kt-hide-aside .wrapper,
+body.kt-hide-aside #kt_wrapper,
+body.kt-hide-aside #kt_header,
+body.kt-hide-aside #kt_toolbar,
+body.kt-hide-aside #kt_content,
+body.kt-hide-aside #kt_post,
+body.kt-hide-aside .footer,
+body.kt-hide-aside #kt_footer {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+    left: 0 !important;
+}

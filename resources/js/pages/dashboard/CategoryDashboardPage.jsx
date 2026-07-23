@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageToolbar from '../../components/PageToolbar';
 
@@ -44,6 +44,17 @@ const CATEGORIES = [
 
 export default function CategoryDashboardPage() {
     const navigate = useNavigate();
+
+    // ── Sembunyikan sidebar Metronic HANYA saat halaman ini aktif ──────
+    // Class ditambahkan ke <body> saat mount, dan WAJIB dihapus lagi
+    // saat unmount (cleanup) — supaya begitu user pindah ke halaman lain
+    // (Equipment, dst), sidebar otomatis muncul kembali normal.
+    useEffect(() => {
+        document.body.classList.add('kt-hide-aside');
+        return () => {
+            document.body.classList.remove('kt-hide-aside');
+        };
+    }, []);
 
     const openCategory = (category) => {
         // FIX: pakai 'filter_group' (bukan 'group') supaya konsisten dengan
