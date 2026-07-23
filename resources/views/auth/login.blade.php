@@ -116,7 +116,7 @@
 
             // Response sukses: { success, message, data: { user, token } }
             localStorage.setItem('sanctum_token', result.data.token);
-            window.location.href = '/admin/equipment';
+            window.location.href = '/admin/dashboard';
 
         } catch (err) {
             showError('Tidak bisa terhubung ke server.');

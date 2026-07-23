@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { fetchEquipments, deleteEquipment, setListFilters } from '../../features/equipment/equipmentSlice';
 import PageToolbar from '../../components/PageToolbar';
 
@@ -13,24 +13,10 @@ const STATUS_BADGE = {
 
 export default function EquipmentListPage() {
     const dispatch = useDispatch();
-    const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
-    const groupFromUrl = searchParams.get('group'); // datang dari CategoryDashboardPage, misal ?group=Body%20Shop
-
     const { items, pagination, stats, filters, status } = useSelector((s) => s.equipment.list);
 
     // State lokal untuk input search supaya tidak nge-fetch di setiap keystroke
     const [searchInput, setSearchInput] = useState(filters.search);
-
-    // ── Terima filter kategori dari URL (klik card di dashboard) ──────────
-    // Cuma dijalankan sekali saat groupFromUrl berubah (misal user navigasi
-    // dari kategori A ke kategori B lewat back button / link lain),
-    // supaya filter_group di redux selalu sinkron dengan URL.
-    useEffect(() => {
-        if (groupFromUrl) {
-            dispatch(setListFilters({ filter_group: groupFromUrl }));
-        }
-    }, [groupFromUrl]);
 
     useEffect(() => {
         dispatch(fetchEquipments({ ...filters, page: 1 }));
@@ -60,35 +46,9 @@ export default function EquipmentListPage() {
         }
     };
 
-    const clearCategoryFilter = () => {
-        dispatch(setListFilters({ filter_group: '' }));
-        navigate('/admin/equipment'); // buang query ?group=... dari URL
-    };
-
     return (
         <>
-            <PageToolbar
-                title={groupFromUrl ? `Equipment — ${groupFromUrl}` : 'Equipment'}
-                menuUtama="Menu Utama"
-                menuItem="Equipment"
-            />
-
-            {groupFromUrl && (
-                <div className="d-flex align-items-center gap-3 mb-5">
-                    <Link to="/admin/dashboard" className="btn btn-sm btn-light">
-                        <i className="bi bi-arrow-left me-1"></i>Kembali ke Dashboard
-                    </Link>
-                    <span className="badge badge-light-primary fs-7 py-2 px-3 d-flex align-items-center gap-2">
-                        Kategori: {groupFromUrl}
-                        <i
-                            role="button"
-                            className="bi bi-x-lg fs-8"
-                            onClick={clearCategoryFilter}
-                            title="Hapus filter kategori"
-                        ></i>
-                    </span>
-                </div>
-            )}
+            <PageToolbar title="Equipment" menuUtama="Menu Utama" menuItem="Equipment" />
 
             {/* ── Stat cards ── */}
             <div className="row g-4 mb-6">

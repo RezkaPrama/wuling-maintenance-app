@@ -1,6 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import CategoryDashboardPage from '../pages/dashboard/CategoryDashboardPage';
 import EquipmentListPage from '../pages/equipment/EquipmentListPage';
 import EquipmentFormPage from '../pages/equipment/EquipmentFormPage';
 import EquipmentDetailPage from '../pages/equipment/EquipmentDetailPage';
@@ -23,6 +24,10 @@ export default function AppRoutes() {
     return (
         <Routes>
             <Route
+                path="/admin/dashboard"
+                element={<RequireAuth><CategoryDashboardPage /></RequireAuth>}
+            />
+            <Route
                 path="/admin/equipment"
                 element={<RequireAuth><EquipmentListPage /></RequireAuth>}
             />
@@ -36,7 +41,8 @@ export default function AppRoutes() {
             />
             <Route path="/admin/equipment/:id" element={<RequireAuth><EquipmentDetailPage /></RequireAuth>} />
 
-            <Route path="/admin/*" element={<Navigate to="/admin/equipment" replace />} />
+            {/* Fallback: sekarang landing page-nya Dashboard kategori, bukan langsung Equipment */}
+            <Route path="/admin/*" element={<Navigate to="/admin/dashboard" replace />} />
         </Routes>
     );
 }

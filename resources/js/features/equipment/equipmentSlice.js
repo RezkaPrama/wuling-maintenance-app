@@ -45,6 +45,21 @@ export const fetchEquipmentDetail = createAsyncThunk(
     }
 );
 
+// GET /equipment/{id} tapi HANYA update bagian history-nya (dipakai saat
+// user ganti filter tahun/status di tab Riwayat, supaya nggak perlu
+// refetch equipment/schedules/qr_code yang tidak berubah).
+export const fetchEquipmentHistory = createAsyncThunk(
+    'equipment/fetchHistory',
+    async ({ id, params = {} }, { rejectWithValue }) => {
+        try {
+            const { data } = await api.get(`/v1/equipment/${id}`, { params });
+            return data.history;
+        } catch (err) {
+            return rejectWithValue(err.response?.data?.message || 'Gagal memuat riwayat.');
+        }
+    }
+);
+
 // POST /equipment
 export const createEquipment = createAsyncThunk(
     'equipment/create',
