@@ -35,17 +35,23 @@ return [
     |
     */
 
-    'guards' => [
-        'web' => [
-            'driver' => 'session',
-            'provider' => 'users',
-        ],
+    // 'guards' => [
+    //     'web' => [
+    //         'driver' => 'session',
+    //         'provider' => 'users',
+    //     ],
 
-        'api' => [
-            'driver' => 'sanctum',			// <-- set ke jwt
-            'provider' => 'users',	// <-- set providers ke customers
-            'hash' => false,
-        ],
+    //     'api' => [
+    //         'driver' => 'sanctum',			// <-- set ke jwt
+    //         'provider' => 'users',	// <-- set providers ke customers
+    //         'hash' => false,
+    //     ],
+    // ],
+
+    // config/auth.php
+    'guards' => [
+        'web' => ['driver' => 'session', 'provider' => 'users'],
+        'api' => ['driver' => 'jwt', 'provider' => 'users'],
     ],
 
     /*

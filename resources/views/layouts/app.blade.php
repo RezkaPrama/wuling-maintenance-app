@@ -2,8 +2,11 @@
 <html lang="en">
 <!--begin::Head-->
 <head>
-    <base href="{{ route('admin.dashboard.index') }}">
-    <title>Wuling - Web App Wuling </title>
+    {{-- FIX: <base href="{{ route('admin.dashboard.index') }}"> DIHAPUS.
+         Tag <base> mengubah resolusi semua URL relatif di halaman,
+         termasuk push-state React Router — kalau dibiarkan, navigasi
+         client-side (link sidebar, redirect dari JS) bisa salah arah. --}}
+    <title>Wuling - Web App Wuling</title>
     <meta charset="utf-8" />
     <meta name="description" content="Web App Wulling Maintenance apps." />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -11,6 +14,7 @@
     <meta property="og:type" content="article" />
     <meta property="og:title" content="Wuling - Web App Wuling" />
     <meta property="og:site_name" content="Wuling | wuling.com" />
+    <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <link rel="shortcut icon" href="{{ asset('assets/media/logos/favicon.png') }}" />
 
@@ -25,9 +29,11 @@
     <link href="{{ asset('assets/plugins/global/plugins.bundle.css') }}" rel="stylesheet" type="text/css" />
     <link href="{{ asset('assets/css/style.bundle.css') }}" rel="stylesheet" type="text/css" />
     <link href="{{ asset('assets/icons/phosphor/styles.min.css') }}" rel="stylesheet" type="text/css">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
     @stack('styles')
-    {{-- @include('layouts.head-css-admin') --}}
+
+    {{-- WAJIB sebelum @vite() untuk plugin React --}}
+    @viteReactRefresh
+    @vite(['resources/css/app.css', 'resources/js/app.jsx'])
 </head>
 <!--end::Head-->
 <!--begin::Body-->
@@ -47,8 +53,26 @@
                 @include('layouts.topbar')
                 <!--end::Header-->
 
-                <!--begin::Content-->
-                @yield('content')
+                <!--begin::Toolbar — slot kosong, isinya di-render React via Portal-->
+                {{--
+                    FIX: @yield('title'), @yield('menuItem'), dll DIHAPUS dari sini,
+                    karena Blade tidak lagi tahu "halaman mana" yang aktif — itu
+                    urusan React Router sekarang. Sebagai gantinya, div dengan
+                    id="page-toolbar-slot" ini jadi target React Portal, diisi
+                    oleh komponen <PageToolbar /> yang dipanggil masing-masing
+                    halaman (lihat resources/js/components/PageToolbar.jsx).
+                --}}
+                <div class="toolbar" id="kt_toolbar">
+                    <div id="kt_toolbar_container" class="container-fluid d-flex flex-stack">
+                        <div id="page-toolbar-slot" class="page-title d-flex align-items-center flex-wrap me-3 mb-5 mb-lg-0"></div>
+                    </div>
+                </div>
+                <!--end::Toolbar-->
+
+                <!--begin::Content — INI yang diganti React, bukan @yield('content') lagi-->
+                <div class="post d-flex flex-column-fluid" id="kt_post">
+                    <div id="root" class="container-fluid"></div>
+                </div>
                 <!--end::Content-->
 
                 <!--begin::Footer-->
@@ -60,24 +84,41 @@
         <!--end::Page-->
     </div>
     <!--end::Root-->
-    <!--begin::Drawers-->
 
     <!--begin::Scrolltop-->
     <div id="kt_scrolltop" class="scrolltop" data-kt-scrolltop="true">
-        <!--begin::Svg Icon | path: icons/duotune/arrows/arr066.svg-->
         <span class="svg-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
                 <rect opacity="0.5" x="13" y="6" width="13" height="2" rx="1" transform="rotate(90 13 6)" fill="currentColor" />
                 <path d="M12.5657 8.56569L16.75 12.75C17.1642 13.1642 17.8358 13.1642 18.25 12.75C18.6642 12.3358 18.6642 11.6642 18.25 11.25L12.7071 5.70711C12.3166 5.31658 11.6834 5.31658 11.2929 5.70711L5.75 11.25C5.33579 11.6642 5.33579 12.3358 5.75 12.75C6.16421 13.1642 6.83579 13.1642 7.25 12.75L11.4343 8.56569C11.7467 8.25327 12.2533 8.25327 12.5657 8.56569Z" fill="currentColor" />
             </svg>
         </span>
-        <!--end::Svg Icon-->
     </div>
     <!--end::Scrolltop-->
 
     <!--begin::Javascript-->
     @include('layouts.vendor-admin-scripts')
     <!--end::Javascript-->
+
+    {{--
+        FIX: link "Sign Out" di topbar.blade.php submit ke route('logout')
+        Fortify (session-based), tapi auth React sekarang berbasis token
+        Sanctum di localStorage. Kalau cuma logout session, token di
+        localStorage TIDAK ikut kehapus — user kelihatan "logout" tapi
+        token lama masih bisa dipakai manggil API sampai expired manual.
+        Script ini nyisipin pembersihan token SEBELUM form submit jalan.
+    --}}
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const logoutForm = document.getElementById('logout-form');
+            if (logoutForm) {
+                logoutForm.addEventListener('submit', function () {
+                    localStorage.removeItem('sanctum_token');
+                    // biarkan form tetap submit normal (logout session Fortify, kalaupun ada)
+                });
+            }
+        });
+    </script>
 </body>
 <!--end::Body-->
 </html>

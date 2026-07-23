@@ -1,10 +1,5 @@
 <?php
 
-use App\Http\Controllers\Admin\CheckSheet\CheckSheetTemplateController;
-use App\Http\Controllers\Admin\Dashboard\DashboardController;
-use App\Http\Controllers\Admin\Equipment\EquipmentController;
-use App\Http\Controllers\Admin\Record\MaintenanceRecordWebController;
-use App\Http\Controllers\Admin\Schedule\MaintenanceScheduleWebController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -12,153 +7,51 @@ use Illuminate\Support\Facades\Route;
 | Web Routes
 |--------------------------------------------------------------------------
 |
-| Here is where you can register web routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "web" middleware group. Make something great!
+| Semua DATA lewat routes/api.php (guard Sanctum). Di sini cuma ada:
+| - Halaman login
+| - Placeholder named-route yang dipakai sidebar/topbar Metronic
+|   (route('admin.equipment.index'), dll) supaya route() helper tidak error
+| - Shell React (catch-all)
 |
 */
-
-// Semua URL diarahkan ke app.blade.php
-// React Router yang akan handle navigasinya
-// Route::get('/{any}', function () {
-//     return view('app');
-// })->where('any', '.*');
 
 Route::get('/', function () {
     return view('auth.login');
 });
 
-// Tambahkan route ini di routes/web.php
 Route::get('/refresh-csrf', function () {
     return response()->json([
         'token' => csrf_token(),
-        'status' => 'success'
+        'status' => 'success',
     ]);
 })->name('refresh.csrf');
 
-Route::group(['prefix' => 'admin', 'middleware' => ['auth']], function () {
-
-    // -----------------------------------------------------------------------------------------------------------------------
-    // DASHBOARD
-    // -----------------------------------------------------------------------------------------------------------------------
-
-    //route dashboard
-    // dashboard wuling
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('admin.dashboard.index');
-
-    // -----------------------------------------------------------------------------------------------------------------------
-    // EQUIPMENT
-    // -----------------------------------------------------------------------------------------------------------------------
-
-    // web.php
-    // Route::prefix('equipment')->name('admin.equipment.')->group(function () {
-    //     Route::get('/',    [EquipmentController::class, 'index'])->name('index');
-    //     Route::get('/{id}', [EquipmentController::class, 'show'])->name('show');
-    // });
-
-    // ── Equipment CRUD ──────────────────────────────────────────────────────
-    Route::prefix('equipment')->name('admin.equipment.')->group(function () {
-        Route::get('/',              [EquipmentController::class, 'index'])->name('index');
-        Route::get('/create',        [EquipmentController::class, 'create'])->name('create');
-        Route::post('/',             [EquipmentController::class, 'store'])->name('store');
-        Route::get('/{id}',          [EquipmentController::class, 'show'])->name('show');
-        Route::get('/{id}/edit',     [EquipmentController::class, 'edit'])->name('edit');
-        Route::put('/{id}',          [EquipmentController::class, 'update'])->name('update');
-        Route::delete('/{id}',       [EquipmentController::class, 'destroy'])->name('destroy');
-
-        // ── QR Code download ────────────────────────────────────────────────
-        // GET /admin/equipment/{id}/qr  → download QR code sebagai PNG/SVG
-        Route::get('/{id}/qr',       [EquipmentController::class, 'downloadQr'])->name('qr');
-    });
-
-    // -----------------------------------------------------------------------------------------------------------------------
-    // Check Sheet Template
-    // -----------------------------------------------------------------------------------------------------------------------
-
-    Route::prefix('admin/check-sheet')->name('admin.check-sheet.')->middleware(['auth'])->group(function () {
-
-        Route::prefix('templates')->name('template.')->group(function () {
-            Route::get('/',              [CheckSheetTemplateController::class, 'index'])->name('index');
-            Route::get('/create',        [CheckSheetTemplateController::class, 'create'])->name('create');
-            Route::post('/',             [CheckSheetTemplateController::class, 'store'])->name('store');
-            Route::get('/{id}',          [CheckSheetTemplateController::class, 'show'])->name('show');
-            Route::get('/{id}/edit',     [CheckSheetTemplateController::class, 'edit'])->name('edit');
-            Route::put('/{id}',          [CheckSheetTemplateController::class, 'update'])->name('update');
-            Route::patch('/{id}/toggle', [CheckSheetTemplateController::class, 'toggleActive'])->name('toggle');
-            Route::delete('/{id}',       [CheckSheetTemplateController::class, 'destroy'])->name('destroy');
-        });
-    });
-
-
-    // -----------------------------------------------------------------------------------------------------------------------
-    // Jadwal PM
-    // -----------------------------------------------------------------------------------------------------------------------
-
-    // ── Jadwal PM ──────────────────────────────────────────────────────────
-    Route::prefix('schedule')->name('admin.schedules.')->group(function () {
-
-        Route::get('/',                    [MaintenanceScheduleWebController::class, 'index'])->name('index');
-        Route::get('/create',              [MaintenanceScheduleWebController::class, 'create'])->name('create');
-        Route::post('/',                   [MaintenanceScheduleWebController::class, 'store'])->name('store');
-        Route::get('/{id}',                [MaintenanceScheduleWebController::class, 'show'])->name('show');
-        Route::get('/{id}/edit',           [MaintenanceScheduleWebController::class, 'edit'])->name('edit');
-        Route::put('/{id}',                [MaintenanceScheduleWebController::class, 'update'])->name('update');
-        Route::delete('/{id}',             [MaintenanceScheduleWebController::class, 'destroy'])->name('destroy');
-
-        // Recalculate semua status jadwal (bisa dipanggil manual atau dari scheduler)
-        Route::post('/recalculate-status', [MaintenanceScheduleWebController::class, 'recalculateStatus'])->name('recalculate');
-    });
-
-    // -----------------------------------------------------------------------------------------------------------------------
-    // Pelaksanaan PM (Maintenance Record)
-    // -----------------------------------------------------------------------------------------------------------------------
-
-    Route::prefix('records')->name('admin.records.')->group(function () {
-
-        // ── List semua record ────────────────────────────────────────────
-        Route::get('/',            [MaintenanceRecordWebController::class, 'index'])->name('index');
-
-        // ── Buat record baru (dari daftar jadwal) ────────────────────────
-        Route::get('/create',      [MaintenanceRecordWebController::class, 'create'])->name('create');
-        Route::post('/',           [MaintenanceRecordWebController::class, 'store'])->name('store');
-
-        // ── FIX: Route khusus QR scan — harus SEBELUM /{id} ────────────
-        // URL target dari QR Code: GET /admin/records/from-qr?equipment_id=5
-        // Jika diletakkan setelah /{id}, Laravel akan tangkap 'from-qr' sebagai {id}
-        Route::get('/from-qr',     [MaintenanceRecordWebController::class, 'createFromQr'])->name('from-qr');
-
-        // ── Detail record (read-only, untuk checker/validator) ───────────
-        Route::get('/{id}',        [MaintenanceRecordWebController::class, 'show'])->name('show');
-
-        // ── Halaman pengerjaan check sheet (teknisi) ─────────────────────
-        Route::get('/{id}/work',   [MaintenanceRecordWebController::class, 'work'])->name('work');
-
-        // ── Complete: teknisi submit selesai ─────────────────────────────
-        Route::post('/{id}/complete',  [MaintenanceRecordWebController::class, 'complete'])->name('complete');
-
-        // ── Validasi: checker/validator approve atau reject ───────────────
-        Route::post('/{id}/validasi',  [MaintenanceRecordWebController::class, 'validasi'])->name('validasi');
-
-        // ── AJAX: autosave satu item check sheet ─────────────────────────
-        Route::put('/{recordId}/items/{itemId}', [MaintenanceRecordWebController::class, 'updateItem'])->name('items.update');
-
-        // ── AJAX: upload foto untuk satu item ────────────────────────────
-        Route::post('/{recordId}/photos/{itemId?}', [MaintenanceRecordWebController::class, 'uploadPhoto'])->name('photos.upload');
-
-        Route::get('/{id}/export', [MaintenanceRecordWebController::class, 'export'])->name('export');
-    });
-
-    // ── Pelaksanaan PM (Maintenance Record) ────────────────────────────────
-    // Route::prefix('records')->name('admin.records.')->group(function () {
-    //     Route::get('/',                              [MaintenanceRecordWebController::class, 'index'])->name('index');
-    //     Route::get('/create',                        [MaintenanceRecordWebController::class, 'create'])->name('create');
-    //     Route::get('/from-qr',                       [MaintenanceRecordWebController::class, 'createFromQr'])->name('from-qr');
-    //     Route::post('/',                             [MaintenanceRecordWebController::class, 'store'])->name('store');
-    //     Route::get('/{id}',                         [MaintenanceRecordWebController::class, 'show'])->name('show');
-    //     Route::get('/{id}/work',                    [MaintenanceRecordWebController::class, 'work'])->name('work');
-    //     Route::put('/{recordId}/items/{itemId}',    [MaintenanceRecordWebController::class, 'updateItem'])->name('updateItem');
-    //     Route::post('/{id}/complete',               [MaintenanceRecordWebController::class, 'complete'])->name('complete');
-    //     Route::post('/{recordId}/upload-photo/{itemId?}', [MaintenanceRecordWebController::class, 'uploadPhoto'])->name('uploadPhoto');
-    //     Route::post('/{id}/validate',               [MaintenanceRecordWebController::class, 'validate'])->name('validate');
-    // });
+// ── Placeholder named-route untuk sidebar & topbar Metronic ────────────
+// Semua link ini dulunya nunjuk ke controller Blade masing-masing modul.
+// Sekarang cukup arahkan ke shell React yang sama — React Router yang
+// nanti baca URL dan render halaman yang sesuai.
+// PENTING: taruh SEMUA ini SEBELUM catch-all '/admin/{any}' di bawah.
+Route::name('admin.')->group(function () {
+    Route::get('/admin/dashboard',              fn () => view('app'))->name('dashboard.index');
+    Route::get('/admin/equipment',               fn () => view('app'))->name('equipment.index');
+    Route::get('/admin/check-sheet/templates',   fn () => view('app'))->name('check-sheet.template.index');
+    Route::get('/admin/schedules',                fn () => view('app'))->name('schedules.index');
+    Route::get('/admin/records',                  fn () => view('app'))->name('records.index');
+    Route::get('/admin/records/create',           fn () => view('app'))->name('records.create');
+    Route::get('/admin/user',                     fn () => view('app'))->name('user.index');
+    Route::get('/admin/role',                     fn () => view('app'))->name('role.index');
+    Route::get('/admin/permission',               fn () => view('app'))->name('permission.index');
 });
+
+// ── Shell React (catch-all) ──────────────────────────────────────────────
+// Tanpa middleware 'auth' session — proteksi akses halaman dihandle React
+// (RequireAuth cek token Sanctum di localStorage), proteksi DATA dihandle
+// oleh guard 'auth:sanctum' di routes/api.php.
+//
+// Route-route bernama di atas otomatis "keserap" ke sini kalau memang
+// path-nya beda dari yang didaftarkan manual; tidak masalah didaftarkan
+// dua kali (nama beda, tujuan sama), Laravel akan pakai definisi pertama
+// yang match untuk URL yang diketik langsung.
+Route::get('/admin/{any?}', function () {
+    return view('app');
+})->where('any', '.*');

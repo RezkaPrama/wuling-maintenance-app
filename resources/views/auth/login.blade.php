@@ -1,5 +1,5 @@
 @extends('layouts.master-without_nav')
-@section('title')Log In WULING APPS @endsection
+@section('title')Log In WULING APPS cuy @endsection
 @section('content')
 <!--begin::Wrapper-->
 <div class="w-lg-500px p-10 p-lg-15 mx-auto">
@@ -28,7 +28,7 @@
         {{ session('info') }}
     </div>
     @endif
-    
+
     <form action="{{ route('login') }}" method="POST" id="loginForm">
         @csrf
         <!--begin::Heading-->
@@ -41,7 +41,8 @@
         </div>
         <div class="fv-row mb-10">
             <label class="form-label fs-6 fw-bolder text-dark">email</label>
-            <input class="form-control form-control-lg form-control-solid @error('email') is-invalid @enderror" type="text" name="email" autocomplete="off" value="{{ old('email') }}" />
+            <input class="form-control form-control-lg form-control-solid @error('email') is-invalid @enderror"
+                type="text" name="email" autocomplete="off" value="{{ old('email') }}" />
             @error('email')
             <div id="validationServerUsernameFeedback" class="invalid-feedback">
                 {{ $message }}
@@ -51,13 +52,14 @@
         <div class="fv-row mb-10">
             <label class="form-label fs-6 fw-bolder text-dark">Password</label>
             <div class="input-group">
-                <input class="form-control form-control-lg form-control-solid" type="password" id="password" name="password" autocomplete="off" value="{{ old('password') }}" />
+                <input class="form-control form-control-lg form-control-solid" type="password" id="password"
+                    name="password" autocomplete="off" value="{{ old('password') }}" />
                 <button class="btn btn-outline-secondary toggle-password" type="button" data-target="password">
                     <i class="fa fa-eye"></i>
                 </button>
             </div>
         </div>
-       
+
         <div class="fv-row mb-10">
             <a href="/forgot-password" class="link-primary fs-6 fw-bolder">Lupa Password ?</a>
         </div>
@@ -74,49 +76,64 @@
 <!--end::Wrapper-->
 
 <script>
-    // Toggle password visibility
-    document.querySelectorAll('.toggle-password').forEach(button => {
-        button.addEventListener('click', function () {
-            const targetInput = document.getElementById(this.dataset.target);
-            const icon = this.querySelector('i');
-            if (targetInput.type === 'password') {
-                targetInput.type = 'text';
-                icon.classList.remove('fa-eye');
-                icon.classList.add('fa-eye-slash');
-            } else {
-                targetInput.type = 'password';
-                icon.classList.remove('fa-eye-slash');
-                icon.classList.add('fa-eye');
-            }
-        });
-    });
+    const loginForm = document.getElementById('loginForm');
+    const loginBtn  = document.getElementById('loginBtn');
 
-    // Loading state saat submit — simple, tanpa CSRF refresh
-    document.getElementById('loginForm').addEventListener('submit', function(e) {
-        const submitBtn = document.getElementById('loginBtn');
-        const btnText = submitBtn.querySelector('.btn-text');
-        const spinner = submitBtn.querySelector('.spinner-border');
+    loginForm.addEventListener('submit', async function (e) {
+        e.preventDefault(); // WAJIB — cegah submit native ke Fortify route('login')
 
-        submitBtn.disabled = true;
+        const btnText = loginBtn.querySelector('.btn-text');
+        const spinner = loginBtn.querySelector('.spinner-border');
+        loginBtn.disabled = true;
         btnText.textContent = 'Memproses...';
         spinner.classList.remove('d-none');
 
-        // Biarkan form submit normal, jangan e.preventDefault()
-    });
+        // Bersihkan pesan error lama (kalau ada dari submit sebelumnya)
+        document.querySelectorAll('.js-login-error').forEach(el => el.remove());
 
-    // Handle session expired dari URL param
-    document.addEventListener('DOMContentLoaded', function() {
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('expired') === '1') {
-            const alertDiv = document.createElement('div');
-            alertDiv.className = 'alert alert-warning alert-dismissible fade show';
-            alertDiv.innerHTML = `
-                <strong>Sesi Berakhir!</strong> Silakan login kembali untuk melanjutkan.
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            `;
-            const wrapper = document.querySelector('.w-lg-500px');
-            wrapper.insertBefore(alertDiv, wrapper.firstChild);
-            window.history.replaceState({}, document.title, window.location.pathname);
+        const loginValue = this.querySelector('[name="email"]').value; // isinya employee_id ATAU email
+        const password    = this.querySelector('[name="password"]').value;
+
+        try {
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                },
+                body: JSON.stringify({ login: loginValue, password }),
+            });
+
+            const result = await res.json();
+
+            if (!res.ok) {
+                // Laravel ValidationException -> { message, errors: { login: [...] } }
+                const message = result.errors?.login?.[0] || result.message || 'Login gagal.';
+                showError(message);
+                resetButton();
+                return;
+            }
+
+            // Response sukses: { success, message, data: { user, token } }
+            localStorage.setItem('sanctum_token', result.data.token);
+            window.location.href = '/admin/equipment';
+
+        } catch (err) {
+            showError('Tidak bisa terhubung ke server.');
+            resetButton();
+        }
+
+        function resetButton() {
+            loginBtn.disabled = false;
+            btnText.textContent = 'Login';
+            spinner.classList.add('d-none');
+        }
+
+        function showError(message) {
+            const errDiv = document.createElement('div');
+            errDiv.className = 'alert alert-danger js-login-error';
+            errDiv.textContent = message;
+            loginForm.insertBefore(errDiv, loginForm.firstChild);
         }
     });
 </script>
