@@ -15,7 +15,7 @@ export default function EquipmentListPage() {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const groupFromUrl = searchParams.get('group'); // datang dari CategoryDashboardPage, misal ?group=Body%20Shop
+    const groupFromUrl = searchParams.get('filter_group'); // datang dari CategoryDashboardPage, misal ?filter_group=Body%20Shop
 
     const { items, pagination, stats, filters, status } = useSelector((s) => s.equipment.list);
 
