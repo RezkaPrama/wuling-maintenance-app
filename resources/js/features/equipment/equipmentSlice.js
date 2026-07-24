@@ -5,7 +5,20 @@ import api from '../../lib/axiosInstance';
 // THUNKS — masing-masing map 1:1 ke endpoint Api\EquipmentController
 // ============================================================
 
-// GET /equipment?search=&filter_status=&filter_group=&filter_location=&per_page=&page=
+// GET /equipment/categories?filter_group= — daftar machine_category + jumlah unit
+export const fetchEquipmentCategories = createAsyncThunk(
+    'equipment/fetchCategories',
+    async (params = {}, { rejectWithValue }) => {
+        try {
+            const { data } = await api.get('/v1/equipment/categories', { params });
+            return data;
+        } catch (err) {
+            return rejectWithValue(err.response?.data?.message || 'Gagal memuat kategori equipment.');
+        }
+    }
+);
+
+// GET /equipment?search=&filter_status=&filter_group=&filter_category=&filter_location=&per_page=&page=
 export const fetchEquipments = createAsyncThunk(
     'equipment/fetchList',
     async (params = {}, { rejectWithValue }) => {
@@ -18,7 +31,7 @@ export const fetchEquipments = createAsyncThunk(
     }
 );
 
-// GET /equipment/form-data — dropdown etm_group & location (dipakai form create & edit)
+// GET /equipment/form-data — dropdown etm_group, location, machine_category (dipakai form create & edit)
 export const fetchFormData = createAsyncThunk(
     'equipment/fetchFormData',
     async (_, { rejectWithValue }) => {
@@ -32,7 +45,6 @@ export const fetchFormData = createAsyncThunk(
 );
 
 // GET /equipment/{id}
-// GET /equipment/{id}?filter_year=&filter_status=&per_page=&page=
 export const fetchEquipmentDetail = createAsyncThunk(
     'equipment/fetchDetail',
     async ({ id, params = {} }, { rejectWithValue }) => {
@@ -45,21 +57,6 @@ export const fetchEquipmentDetail = createAsyncThunk(
     }
 );
 
-// GET /equipment/{id} tapi HANYA update bagian history-nya (dipakai saat
-// user ganti filter tahun/status di tab Riwayat, supaya nggak perlu
-// refetch equipment/schedules/qr_code yang tidak berubah).
-export const fetchEquipmentHistory = createAsyncThunk(
-    'equipment/fetchHistory',
-    async ({ id, params = {} }, { rejectWithValue }) => {
-        try {
-            const { data } = await api.get(`/v1/equipment/${id}`, { params });
-            return data.history;
-        } catch (err) {
-            return rejectWithValue(err.response?.data?.message || 'Gagal memuat riwayat.');
-        }
-    }
-);
-
 // POST /equipment
 export const createEquipment = createAsyncThunk(
     'equipment/create',
@@ -68,7 +65,6 @@ export const createEquipment = createAsyncThunk(
             const { data } = await api.post('/v1/equipment', payload);
             return data;
         } catch (err) {
-            // 422 -> validation errors per-field, dilempar apa adanya ke komponen
             return rejectWithValue(err.response?.data || { message: 'Gagal menyimpan equipment.' });
         }
     }
@@ -95,24 +91,30 @@ export const deleteEquipment = createAsyncThunk(
             const { data } = await api.delete(`/v1/equipment/${id}`);
             return { id, ...data };
         } catch (err) {
-            // 409 -> masih ada maintenance record, tampilkan message dari backend
             return rejectWithValue(err.response?.data?.message || 'Gagal menghapus equipment.');
         }
     }
 );
 
 const initialState = {
+    categories: {
+        items: [],
+        filterGroup: '',
+        status: 'idle',
+        error: null,
+    },
     list: {
         items: [],
-        pagination: null, // { current_page, last_page, total, ... } dari Laravel paginate()
+        pagination: null,
         stats: { total_active: 0, total_maintenance: 0, total_inactive: 0, total_overdue: 0 },
-        filters: { search: '', filter_status: '', filter_group: '', filter_location: '' },
-        status: 'idle', // idle | loading | succeeded | failed
+        filters: { search: '', filter_status: '', filter_group: '', filter_location: '', filter_category: '' },
+        status: 'idle',
         error: null,
     },
     formOptions: {
         etm_groups: [],
         locations: [],
+        machine_categories: [],
         status: 'idle',
     },
     detail: {
@@ -121,9 +123,9 @@ const initialState = {
         error: null,
     },
     mutation: {
-        status: 'idle', // dipakai bareng utk create/update/delete supaya tombol submit bisa disable
+        status: 'idle',
         error: null,
-        fieldErrors: null, // dari Laravel 422 -> { equipment_code: [...], ... }
+        fieldErrors: null,
     },
 };
 
@@ -140,9 +142,26 @@ const equipmentSlice = createSlice({
         clearDetail(state) {
             state.detail = { data: null, status: 'idle', error: null };
         },
+        clearCategories(state) {
+            state.categories = { items: [], filterGroup: '', status: 'idle', error: null };
+        },
     },
     extraReducers: (builder) => {
         builder
+            // ── CATEGORIES ────────────────────────────────────────────
+            .addCase(fetchEquipmentCategories.pending, (state) => {
+                state.categories.status = 'loading';
+            })
+            .addCase(fetchEquipmentCategories.fulfilled, (state, action) => {
+                state.categories.status = 'succeeded';
+                state.categories.items = action.payload.categories;
+                state.categories.filterGroup = action.payload.filter_group;
+            })
+            .addCase(fetchEquipmentCategories.rejected, (state, action) => {
+                state.categories.status = 'failed';
+                state.categories.error = action.payload;
+            })
+
             // ── LIST ──────────────────────────────────────────────────
             .addCase(fetchEquipments.pending, (state) => {
                 state.list.status = 'loading';
@@ -171,6 +190,7 @@ const equipmentSlice = createSlice({
                 state.formOptions.status = 'succeeded';
                 state.formOptions.etm_groups = action.payload.etm_groups;
                 state.formOptions.locations = action.payload.locations;
+                state.formOptions.machine_categories = action.payload.machine_categories;
             })
 
             // ── DETAIL ────────────────────────────────────────────────
@@ -229,5 +249,5 @@ const equipmentSlice = createSlice({
     },
 });
 
-export const { setListFilters, clearMutationState, clearDetail } = equipmentSlice.actions;
+export const { setListFilters, clearMutationState, clearDetail, clearCategories } = equipmentSlice.actions;
 export default equipmentSlice.reducer;

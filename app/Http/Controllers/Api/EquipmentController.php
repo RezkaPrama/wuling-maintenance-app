@@ -12,15 +12,48 @@ use Illuminate\Support\Facades\DB;
 class EquipmentController extends Controller
 {
     // ============================================================
+    // CATEGORIES — daftar machine_category + jumlah unit, utk kartu
+    // level-1 di /admin/equipment sebelum masuk ke tabel unit detail
+    // ============================================================
+    public function categories(Request $request)
+    {
+        $filterGroup = $request->input('filter_group');
+
+        $query = DB::table('equipment')
+            ->select(
+                'machine_category',
+                DB::raw('COUNT(*) as total_unit'),
+                DB::raw("SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as total_active"),
+                DB::raw("SUM(CASE WHEN status = 'maintenance' THEN 1 ELSE 0 END) as total_maintenance"),
+                DB::raw("SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) as total_inactive"),
+            )
+            ->whereNotNull('machine_category');
+
+        if ($filterGroup) {
+            $query->where('etm_group', $filterGroup);
+        }
+
+        $categories = $query->groupBy('machine_category')
+            ->orderBy('machine_category')
+            ->get();
+
+        return response()->json([
+            'categories'   => $categories,
+            'filter_group' => $filterGroup,
+        ]);
+    }
+
+    // ============================================================
     // INDEX — Daftar semua equipment dengan filter (JSON)
     // ============================================================
     public function index(Request $request)
     {
-        $search       = $request->input('search');
-        $filterStatus = $request->input('filter_status');
-        $filterGroup  = $request->input('filter_group');
-        $filterLoc    = $request->input('filter_location');
-        $perPage      = $request->input('per_page', 25);
+        $search         = $request->input('search');
+        $filterStatus   = $request->input('filter_status');
+        $filterGroup    = $request->input('filter_group');
+        $filterLoc      = $request->input('filter_location');
+        $filterCategory = $request->input('filter_category');
+        $perPage        = $request->input('per_page', 25);
 
         $query = DB::table('equipment as e')
             ->leftJoin('maintenance_schedules as ms', function ($join) {
@@ -33,7 +66,7 @@ class EquipmentController extends Controller
                      )');
             })
             ->select(
-                'e.id', 'e.equipment_code', 'e.equipment_name',
+                'e.id', 'e.equipment_code', 'e.equipment_name', 'e.machine_category',
                 'e.pm_number', 'e.tis_number', 'e.etm_group',
                 'e.location', 'e.status',
                 'ms.pm_cycle', 'ms.next_maintenance',
@@ -54,8 +87,9 @@ class EquipmentController extends Controller
             $query->where('e.status', $filterStatus);
         }
 
-        if ($filterGroup)  $query->where('e.etm_group', $filterGroup);
-        if ($filterLoc)    $query->where('e.location',  $filterLoc);
+        if ($filterGroup)    $query->where('e.etm_group', $filterGroup);
+        if ($filterLoc)      $query->where('e.location',  $filterLoc);
+        if ($filterCategory) $query->where('e.machine_category', $filterCategory);
 
         $query->orderByRaw("CASE e.status
                 WHEN 'maintenance' THEN 1
@@ -93,6 +127,7 @@ class EquipmentController extends Controller
                 'filter_status'   => $filterStatus,
                 'filter_group'    => $filterGroup,
                 'filter_location' => $filterLoc,
+                'filter_category' => $filterCategory,
             ],
             'options' => [
                 'etm_groups' => $etmGroups,
@@ -113,9 +148,13 @@ class EquipmentController extends Controller
         $locations = DB::table('equipment')->whereNotNull('location')
             ->distinct()->orderBy('location')->pluck('location');
 
+        $machineCategories = DB::table('equipment')->whereNotNull('machine_category')
+            ->distinct()->orderBy('machine_category')->pluck('machine_category');
+
         return response()->json([
-            'etm_groups' => $etmGroups,
-            'locations'  => $locations,
+            'etm_groups'         => $etmGroups,
+            'locations'          => $locations,
+            'machine_categories' => $machineCategories,
         ]);
     }
 
@@ -125,17 +164,18 @@ class EquipmentController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'equipment_code' => 'required|string|max:255|unique:equipment,equipment_code',
-            'equipment_name' => 'required|string|max:255',
-            'pm_number'      => 'required|string|max:255',
-            'tis_number'     => 'nullable|string|max:255',
-            'etm_group'      => 'required|string|max:255',
-            'location'       => 'nullable|string|max:255',
-            'status'         => 'required|in:active,inactive,maintenance',
-            'spec_key'       => 'nullable|array',
-            'spec_key.*'     => 'nullable|string|max:100',
-            'spec_value'     => 'nullable|array',
-            'spec_value.*'   => 'nullable|string|max:255',
+            'equipment_code'   => 'required|string|max:255|unique:equipment,equipment_code',
+            'equipment_name'   => 'required|string|max:255',
+            'machine_category' => 'nullable|string|max:255',
+            'pm_number'        => 'required|string|max:255',
+            'tis_number'       => 'nullable|string|max:255',
+            'etm_group'        => 'required|string|max:255',
+            'location'         => 'nullable|string|max:255',
+            'status'           => 'required|in:active,inactive,maintenance',
+            'spec_key'         => 'nullable|array',
+            'spec_key.*'       => 'nullable|string|max:100',
+            'spec_value'       => 'nullable|array',
+            'spec_value.*'     => 'nullable|string|max:255',
         ]);
 
         $specifications = $this->buildSpecifications(
@@ -144,16 +184,17 @@ class EquipmentController extends Controller
         );
 
         $id = DB::table('equipment')->insertGetId([
-            'equipment_code' => strtoupper(trim($validated['equipment_code'])),
-            'equipment_name' => $validated['equipment_name'],
-            'pm_number'      => $validated['pm_number'],
-            'tis_number'     => $validated['tis_number'] ?? null,
-            'etm_group'      => $validated['etm_group'],
-            'location'       => $validated['location'] ?? null,
-            'status'         => $validated['status'],
-            'specifications' => $specifications ? json_encode($specifications) : null,
-            'created_at'     => now(),
-            'updated_at'     => now(),
+            'equipment_code'   => strtoupper(trim($validated['equipment_code'])),
+            'equipment_name'   => $validated['equipment_name'],
+            'machine_category' => $validated['machine_category'] ?? null,
+            'pm_number'        => $validated['pm_number'],
+            'tis_number'       => $validated['tis_number'] ?? null,
+            'etm_group'        => $validated['etm_group'],
+            'location'         => $validated['location'] ?? null,
+            'status'           => $validated['status'],
+            'specifications'   => $specifications ? json_encode($specifications) : null,
+            'created_at'       => now(),
+            'updated_at'       => now(),
         ]);
 
         $equipment = DB::table('equipment')->where('id', $id)->first();
@@ -278,17 +319,18 @@ class EquipmentController extends Controller
         }
 
         $validated = $request->validate([
-            'equipment_code' => "required|string|max:255|unique:equipment,equipment_code,{$id}",
-            'equipment_name' => 'required|string|max:255',
-            'pm_number'      => 'required|string|max:255',
-            'tis_number'     => 'nullable|string|max:255',
-            'etm_group'      => 'required|string|max:255',
-            'location'       => 'nullable|string|max:255',
-            'status'         => 'required|in:active,inactive,maintenance',
-            'spec_key'       => 'nullable|array',
-            'spec_key.*'     => 'nullable|string|max:100',
-            'spec_value'     => 'nullable|array',
-            'spec_value.*'   => 'nullable|string|max:255',
+            'equipment_code'   => "required|string|max:255|unique:equipment,equipment_code,{$id}",
+            'equipment_name'   => 'required|string|max:255',
+            'machine_category' => 'nullable|string|max:255',
+            'pm_number'        => 'required|string|max:255',
+            'tis_number'       => 'nullable|string|max:255',
+            'etm_group'        => 'required|string|max:255',
+            'location'         => 'nullable|string|max:255',
+            'status'           => 'required|in:active,inactive,maintenance',
+            'spec_key'         => 'nullable|array',
+            'spec_key.*'       => 'nullable|string|max:100',
+            'spec_value'       => 'nullable|array',
+            'spec_value.*'     => 'nullable|string|max:255',
         ]);
 
         $specifications = $this->buildSpecifications(
@@ -297,15 +339,16 @@ class EquipmentController extends Controller
         );
 
         DB::table('equipment')->where('id', $id)->update([
-            'equipment_code' => strtoupper(trim($validated['equipment_code'])),
-            'equipment_name' => $validated['equipment_name'],
-            'pm_number'      => $validated['pm_number'],
-            'tis_number'     => $validated['tis_number'] ?? null,
-            'etm_group'      => $validated['etm_group'],
-            'location'       => $validated['location'] ?? null,
-            'status'         => $validated['status'],
-            'specifications' => $specifications ? json_encode($specifications) : null,
-            'updated_at'     => now(),
+            'equipment_code'   => strtoupper(trim($validated['equipment_code'])),
+            'equipment_name'   => $validated['equipment_name'],
+            'machine_category' => $validated['machine_category'] ?? null,
+            'pm_number'        => $validated['pm_number'],
+            'tis_number'       => $validated['tis_number'] ?? null,
+            'etm_group'        => $validated['etm_group'],
+            'location'         => $validated['location'] ?? null,
+            'status'           => $validated['status'],
+            'specifications'   => $specifications ? json_encode($specifications) : null,
+            'updated_at'       => now(),
         ]);
 
         $updated = DB::table('equipment')->where('id', $id)->first();

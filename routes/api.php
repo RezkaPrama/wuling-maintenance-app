@@ -32,6 +32,7 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
         Route::get('/',           [EquipmentController::class, 'index']);
         Route::get('/form-data',  [EquipmentController::class, 'formData']);
         Route::post('/',          [EquipmentController::class, 'store']);
+        Route::get('/categories', [EquipmentController::class, 'categories']);
         Route::get('/{id}',       [EquipmentController::class, 'show']);
         Route::put('/{id}',       [EquipmentController::class, 'update']);
         Route::delete('/{id}',    [EquipmentController::class, 'destroy']);
