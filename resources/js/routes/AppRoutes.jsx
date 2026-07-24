@@ -5,6 +5,7 @@ import CategoryDashboardPage from '../pages/dashboard/CategoryDashboardPage';
 import EquipmentListPage from '../pages/equipment/EquipmentListPage';
 import EquipmentFormPage from '../pages/equipment/EquipmentFormPage';
 import EquipmentDetailPage from '../pages/equipment/EquipmentDetailPage';
+import CheckSheetListPage from '../pages/checksheet/CheckSheetListPage';
 
 // ── Guard sederhana: kalau belum ada token Sanctum, lempar balik ke halaman login Blade ──
 // FIX: TIDAK lagi membungkus dengan <AdminLayout> — sidebar/topbar/footer
@@ -41,6 +42,14 @@ export default function AppRoutes() {
             />
             <Route path="/admin/equipment/:id" element={<RequireAuth><EquipmentDetailPage /></RequireAuth>} />
 
+            <Route
+                path="/admin/check-sheet/templates"
+                element={<RequireAuth><CheckSheetListPage /></RequireAuth>}
+            />
+            {/* <Route path="/admin/check-sheet/templates/create" element={<RequireAuth><CheckSheetFormPage /></RequireAuth>} /> */}
+            {/* <Route path="/admin/check-sheet/templates/:id/edit" element={<RequireAuth><CheckSheetFormPage /></RequireAuth>} /> */}
+            {/* <Route path="/admin/check-sheet/templates/:id" element={<RequireAuth><CheckSheetDetailPage /></RequireAuth>} /> */}
+           
             {/* Fallback: sekarang landing page-nya Dashboard kategori, bukan langsung Equipment */}
             <Route path="/admin/*" element={<Navigate to="/admin/dashboard" replace />} />
         </Routes>

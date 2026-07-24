@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CheckSheetTemplateController;
 use App\Http\Controllers\Api\EquipmentController;
 use Illuminate\Support\Facades\Route;
 
@@ -40,4 +41,15 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
     });
 
     // TODO: check-sheet/templates, schedules, records — sama seperti sebelumnya
+
+    // TODO: check-sheet/templates, schedules, records — sama seperti sebelumnya
+    Route::prefix('check-sheet/templates')->group(function () {
+        Route::get('/',              [CheckSheetTemplateController::class, 'index']);
+        Route::get('/form-data',     [CheckSheetTemplateController::class, 'formData']);
+        Route::post('/',             [CheckSheetTemplateController::class, 'store']);
+        Route::get('/{id}',          [CheckSheetTemplateController::class, 'show']);
+        Route::put('/{id}',          [CheckSheetTemplateController::class, 'update']);
+        Route::patch('/{id}/toggle', [CheckSheetTemplateController::class, 'toggleActive']);
+        Route::delete('/{id}',       [CheckSheetTemplateController::class, 'destroy']);
+    });
 });
