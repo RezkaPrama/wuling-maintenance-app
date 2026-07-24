@@ -12,11 +12,13 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->call(UserSeeder::class);
-        $this->call(PmTypeSeeder::class);
-        $this->call(EquipmentSeeder::class);
-        $this->call(CheckSheetTemplateSeeder::class);
-        $this->call(MaintenanceScheduleSeeder::class);
+        // $this->call(UserSeeder::class);
+        // $this->call(PmTypeSeeder::class);
+        // $this->call(EquipmentSeeder::class);
+        // $this->call(CheckSheetTemplateSeeder::class);
+        // $this->call(MaintenanceScheduleSeeder::class);
+        $this->call(BodyShopEquipmentSeeder::class);
+        
         // \App\Models\User::factory(10)->create();
 
         // \App\Models\User::factory()->create([

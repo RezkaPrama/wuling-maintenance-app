@@ -17,7 +17,7 @@ const CATEGORIES = [
         code: 'BD',
         label: 'Body',
         etmGroup: 'Body',
-        icon: 'bi-car-front-fill',
+        icon: 'bi-ev-front-fill',
         color: 'success',
         description: 'Mesin & equipment area Body Shop',
     },
