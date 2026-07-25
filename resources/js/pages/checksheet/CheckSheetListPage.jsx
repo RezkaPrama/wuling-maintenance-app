@@ -100,7 +100,7 @@ export default function CheckSheetListPage() {
                     { label: 'Cycle 2 Tahun', value: stats?.cycle_2y ?? 0, icon: 'bi-calendar2-range', color: 'danger' },
                 ].map((sc) => (
                     <div className="col-6 col-lg" key={sc.label}>
-                        <div className="card card-flush border-0 shadow-sm h-100">
+                        <div className="card card-flush border-0 shadow-lg h-100">
                             <div className="card-body d-flex align-items-center gap-3 p-5">
                                 <div className="symbol symbol-45px">
                                     <div className={`symbol-label bg-light-${sc.color}`}>
@@ -118,7 +118,7 @@ export default function CheckSheetListPage() {
             </div>
 
             {/* ── Filter + Table ── */}
-            <div className="card card-flush border-0 shadow-sm">
+            <div className="card card-flush border-0 shadow-lg">
                 <div className="card-header border-0 pt-6 flex-wrap gap-3">
                     <div className="card-title flex-wrap gap-2">
                         <div className="d-flex gap-2 flex-wrap align-items-center">

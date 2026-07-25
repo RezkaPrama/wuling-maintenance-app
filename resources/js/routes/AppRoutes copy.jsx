@@ -1,75 +1,57 @@
-import React from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
-import { useSelector } from 'react-redux'
-import { selectIsAuthenticated } from '../store/slices/authSlice'
+import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import CategoryDashboardPage from '../pages/dashboard/CategoryDashboardPage';
+import EquipmentListPage from '../pages/equipment/EquipmentListPage';
+import EquipmentFormPage from '../pages/equipment/EquipmentFormPage';
+import EquipmentDetailPage from '../pages/equipment/EquipmentDetailPage';
+import CheckSheetListPage from '../pages/checksheet/CheckSheetListPage';
 
-// Layouts
-import Layout from '../components/Layout'
-
-// Pages
-import Login      from '../pages/LoginPage'
-import Dashboard  from '../pages/Dashboard'
-import EquipmentList   from '../pages/equipment/EquipmentList'
-import MaintenanceList from '../pages/maintenance/MaintenanceList'
-
-// ─── Private Route ────────────────────────────────────────────
-// Cek token JWT — kalau belum login redirect ke /login
-function PrivateRoute({ children }) {
-    const isAuthenticated = useSelector(selectIsAuthenticated)
-    return isAuthenticated
-        ? children
-        : <Navigate to="/login" replace />
+// ── Guard sederhana: kalau belum ada token Sanctum, lempar balik ke halaman login Blade ──
+// FIX: TIDAK lagi membungkus dengan <AdminLayout> — sidebar/topbar/footer
+// Metronic sekarang di-render penuh oleh app.blade.php (Blade asli),
+// bukan reimplementasi React. React cukup return konten halamannya saja,
+// yang akan menempati <div id="root"> di dalam layout Blade tersebut.
+function RequireAuth({ children }) {
+    const token = useSelector((s) => s.auth.token);
+    if (!token) {
+        window.location.href = '/';
+        return null;
+    }
+    return children;
 }
 
-// ─── Public Route ─────────────────────────────────────────────
-// Kalau sudah login dan akses /login → redirect ke dashboard
-function PublicRoute({ children }) {
-    const isAuthenticated = useSelector(selectIsAuthenticated)
-    return !isAuthenticated
-        ? children
-        : <Navigate to="/" replace />
-}
-
-// ─── App Routes ───────────────────────────────────────────────
 export default function AppRoutes() {
     return (
         <Routes>
+            <Route
+                path="/admin/dashboard"
+                element={<RequireAuth><CategoryDashboardPage /></RequireAuth>}
+            />
+            <Route
+                path="/admin/equipment"
+                element={<RequireAuth><EquipmentListPage /></RequireAuth>}
+            />
+            <Route
+                path="/admin/equipment/create"
+                element={<RequireAuth><EquipmentFormPage /></RequireAuth>}
+            />
+            <Route
+                path="/admin/equipment/:id/edit"
+                element={<RequireAuth><EquipmentFormPage /></RequireAuth>}
+            />
+            <Route path="/admin/equipment/:id" element={<RequireAuth><EquipmentDetailPage /></RequireAuth>} />
 
-            {/* Public — hanya bisa diakses sebelum login */}
-            <Route path="/login" element={
-                <PublicRoute>
-                    <Login />
-                </PublicRoute>
-            }/>
-
-            {/* Private — wajib login dulu */}
-            <Route path="/" element={
-                <PrivateRoute>
-                    <Layout>
-                        <Dashboard />
-                    </Layout>
-                </PrivateRoute>
-            }/>
-
-            <Route path="/equipment" element={
-                <PrivateRoute>
-                    <Layout>
-                        <EquipmentList />
-                    </Layout>
-                </PrivateRoute>
-            }/>
-
-            <Route path="/maintenance" element={
-                <PrivateRoute>
-                    <Layout>
-                        <MaintenanceList />
-                    </Layout>
-                </PrivateRoute>
-            }/>
-
-            {/* Redirect semua URL tidak dikenal ke dashboard */}
-            <Route path="*" element={<Navigate to="/" replace />}/>
-
+            <Route
+                path="/admin/check-sheet/templates"
+                element={<RequireAuth><CheckSheetListPage /></RequireAuth>}
+            />
+            {/* <Route path="/admin/check-sheet/templates/create" element={<RequireAuth><CheckSheetFormPage /></RequireAuth>} /> */}
+            {/* <Route path="/admin/check-sheet/templates/:id/edit" element={<RequireAuth><CheckSheetFormPage /></RequireAuth>} /> */}
+            {/* <Route path="/admin/check-sheet/templates/:id" element={<RequireAuth><CheckSheetDetailPage /></RequireAuth>} /> */}
+           
+            {/* Fallback: sekarang landing page-nya Dashboard kategori, bukan langsung Equipment */}
+            <Route path="/admin/*" element={<Navigate to="/admin/dashboard" replace />} />
         </Routes>
-    )
+    );
 }
