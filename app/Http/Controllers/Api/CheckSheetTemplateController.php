@@ -19,7 +19,7 @@ class CheckSheetTemplateController extends Controller
         $perPage     = $request->input('per_page', 25);
 
         $query = DB::table('check_sheet_templates as cst')
-            ->join('equipment as e', 'cst.equipment_id', '=', 'e.id')
+            ->leftJoin('equipment as e', 'cst.equipment_id', '=', 'e.id')
             ->select(
                 'cst.id',
                 'cst.template_name',
@@ -58,7 +58,7 @@ class CheckSheetTemplateController extends Controller
             $query->where('cst.equipment_id', $filterEquip);
         }
 
-        $query->orderBy('e.equipment_name')->orderBy('cst.pm_cycle');
+        $query->orderBy('cst.template_name')->orderBy('cst.pm_cycle');
 
         $templates = $query->paginate($perPage)->appends($request->query());
 
@@ -66,9 +66,10 @@ class CheckSheetTemplateController extends Controller
             ->selectRaw("
                 COUNT(*) as total,
                 SUM(is_active) as active,
+                SUM(CASE WHEN pm_cycle = '1M' THEN 1 ELSE 0 END) as cycle_1m,
+                SUM(CASE WHEN pm_cycle = '3M' THEN 1 ELSE 0 END) as cycle_3m,
                 SUM(CASE WHEN pm_cycle = '6M' THEN 1 ELSE 0 END) as cycle_6m,
-                SUM(CASE WHEN pm_cycle = '1Y' THEN 1 ELSE 0 END) as cycle_1y,
-                SUM(CASE WHEN pm_cycle = '2Y' THEN 1 ELSE 0 END) as cycle_2y
+                SUM(CASE WHEN pm_cycle = '1Y' THEN 1 ELSE 0 END) as cycle_1y
             ")
             ->first();
 
@@ -90,24 +91,27 @@ class CheckSheetTemplateController extends Controller
 
     // ============================================================
     // FORM DATA — dropdown untuk form Create & Edit
-    // (equipment aktif, master pm_types, dan daftar etm_group untuk
-    // pilihan "jadikan default untuk kategori")
+    // FIX: Equipment TIDAK LAGI wajib dipilih satu-satu. Template
+    // sekarang dikategorikan lewat `machine_category`, jadi dropdown
+    // utamanya adalah daftar machine_category unik (bukan etm_group,
+    // dan bukan pilih 1 equipment). `equipment_list` tetap dikirim
+    // untuk keperluan filter di halaman List, bukan buat form ini.
     // ============================================================
     public function formData()
     {
         $equipmentList = DB::table('equipment')
             ->where('status', 'active')
             ->orderBy('equipment_name')
-            ->get(['id', 'equipment_code', 'equipment_name', 'etm_group']);
+            ->get(['id', 'equipment_code', 'equipment_name', 'etm_group', 'machine_category']);
 
         $pmTypes = DB::table('pm_types')
             ->orderBy('id')
             ->get(['id', 'code', 'name', 'color_code']);
 
-        $etmGroups = DB::table('equipment')->whereNotNull('etm_group')
-            ->distinct()->orderBy('etm_group')->pluck('etm_group');
+        $machineCategories = DB::table('equipment')->whereNotNull('machine_category')
+            ->distinct()->orderBy('machine_category')->pluck('machine_category');
 
-        // Info: kategori mana yang SUDAH punya template default, dan
+        // Info: kategori mesin mana yang SUDAH punya template default, dan
         // template apa — supaya form bisa kasih warning "kategori ini
         // sudah dipegang template X, lanjut akan menggantikannya".
         $currentDefaults = DB::table('check_sheet_templates')
@@ -116,10 +120,10 @@ class CheckSheetTemplateController extends Controller
             ->get(['id', 'template_name', 'default_for_etm_group']);
 
         return response()->json([
-            'equipment_list'    => $equipmentList,
-            'pm_types'          => $pmTypes,
-            'etm_groups'        => $etmGroups,
-            'current_defaults'  => $currentDefaults,
+            'equipment_list'      => $equipmentList,
+            'pm_types'            => $pmTypes,
+            'machine_categories'  => $machineCategories,
+            'current_defaults'    => $currentDefaults,
         ]);
     }
 
@@ -128,12 +132,17 @@ class CheckSheetTemplateController extends Controller
     // ============================================================
     public function store(Request $request)
     {
+        // CATATAN: kolom `default_for_etm_group` NAMANYA tidak diubah (biar
+        // nggak perlu migration rename + biar konsisten sama DB kamu),
+        // tapi ISINYA sekarang diisi dari nilai `equipment.machine_category`,
+        // BUKAN `etm_group` lagi. Ini sekarang WAJIB diisi karena jadi
+        // satu-satunya penentu cakupan template (equipment_id opsional).
         $validated = $request->validate([
-            'equipment_id'            => 'required|exists:equipment,id',
+            'equipment_id'            => 'nullable|exists:equipment,id',
             'template_name'           => 'required|string|max:255',
             'doc_number'              => 'required|string|max:255|unique:check_sheet_templates,doc_number',
-            'pm_cycle'                => 'required|in:6M,1Y,2Y',
-            'default_for_etm_group'   => 'nullable|string|max:255',
+            'pm_cycle'                => 'required|in:1M,3M,6M,1Y',
+            'default_for_etm_group'   => 'required|string|max:255', // isinya machine_category
             'items'                   => 'required|array|min:1',
             'items.*.check_item'           => 'required|string|max:255',
             'items.*.maintenance_standard' => 'required|string',
@@ -141,6 +150,7 @@ class CheckSheetTemplateController extends Controller
             'items.*.man_power'            => 'required|integer|min:1|max:99',
             'items.*.time_minutes'         => 'required|integer|min:1|max:9999',
         ], [
+            'default_for_etm_group.required'        => 'Kategori Mesin wajib dipilih.',
             'items.*.check_item.required'           => 'Check Item baris :position wajib diisi.',
             'items.*.maintenance_standard.required' => 'Maintenance Standard baris :position wajib diisi.',
             'items.*.pm_types.required'             => 'PM Type baris :position wajib dipilih minimal 1.',
@@ -160,11 +170,11 @@ class CheckSheetTemplateController extends Controller
             }
 
             $templateId = DB::table('check_sheet_templates')->insertGetId([
-                'equipment_id'          => $validated['equipment_id'],
+                'equipment_id'          => $validated['equipment_id'] ?? null,
                 'template_name'         => $validated['template_name'],
                 'doc_number'            => $validated['doc_number'],
                 'pm_cycle'              => $validated['pm_cycle'],
-                'default_for_etm_group' => $validated['default_for_etm_group'] ?? null,
+                'default_for_etm_group' => $validated['default_for_etm_group'],
                 'template_data'         => json_encode([]),
                 'is_active'             => 1,
                 'created_at'            => now(),
@@ -194,7 +204,7 @@ class CheckSheetTemplateController extends Controller
     public function show($id)
     {
         $template = DB::table('check_sheet_templates as cst')
-            ->join('equipment as e', 'cst.equipment_id', '=', 'e.id')
+            ->leftJoin('equipment as e', 'cst.equipment_id', '=', 'e.id')
             ->select('cst.*', 'e.equipment_code', 'e.equipment_name', 'e.etm_group', 'e.location')
             ->where('cst.id', $id)
             ->first();
@@ -247,17 +257,19 @@ class CheckSheetTemplateController extends Controller
         }
 
         $validated = $request->validate([
-            'equipment_id'          => 'required|exists:equipment,id',
+            'equipment_id'          => 'nullable|exists:equipment,id',
             'template_name'         => 'required|string|max:255',
             'doc_number'            => "required|string|max:255|unique:check_sheet_templates,doc_number,{$id}",
-            'pm_cycle'              => 'required|in:6M,1Y,2Y',
-            'default_for_etm_group' => 'nullable|string|max:255',
+            'pm_cycle'              => 'required|in:1M,3M,6M,1Y',
+            'default_for_etm_group' => 'required|string|max:255', // isinya machine_category
             'items'                 => 'required|array|min:1',
             'items.*.check_item'           => 'required|string|max:255',
             'items.*.maintenance_standard' => 'required|string',
             'items.*.pm_types'             => 'required|array|min:1',
             'items.*.man_power'            => 'required|integer|min:1|max:99',
             'items.*.time_minutes'         => 'required|integer|min:1|max:9999',
+        ], [
+            'default_for_etm_group.required' => 'Kategori Mesin wajib dipilih.',
         ]);
 
         DB::beginTransaction();
@@ -271,11 +283,11 @@ class CheckSheetTemplateController extends Controller
             }
 
             DB::table('check_sheet_templates')->where('id', $id)->update([
-                'equipment_id'          => $validated['equipment_id'],
+                'equipment_id'          => $validated['equipment_id'] ?? null,
                 'template_name'         => $validated['template_name'],
                 'doc_number'            => $validated['doc_number'],
                 'pm_cycle'              => $validated['pm_cycle'],
-                'default_for_etm_group' => $validated['default_for_etm_group'] ?? null,
+                'default_for_etm_group' => $validated['default_for_etm_group'],
                 'updated_at'            => now(),
             ]);
 

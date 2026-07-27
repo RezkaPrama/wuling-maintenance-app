@@ -34,3 +34,70 @@ body.kt-hide-aside #kt_footer {
     padding-left: 0 !important;
     left: 0 !important;
 }
+
+/* ============================================================
+   FIX: Background halaman vs card supaya ada kontras.
+   Struktur mengikuti app.blade.php: body#kt_body > .wrapper#kt_wrapper
+   > #kt_post > #root. File ini di-load via @vite() paling akhir
+   (setelah style.bundle.css Metronic), jadi menang duluan tanpa
+   perlu !important -- kecuali disebutkan lain di bawah.
+   ============================================================ */
+body#kt_body,
+#kt_wrapper,
+#kt_post {
+    background-color: #e9ecef; /* gray-200 Bootstrap -- 1 level lebih gelap dari sebelumnya */
+}
+
+/* #root masih container-fluid dari Blade -- pastikan transparan
+   supaya warna abu di atas kelihatan menembus sampai ke belakang card */
+#root.container-fluid {
+    background-color: transparent;
+}
+
+/* Pertegas dikit batas card, tidak cuma andalkan shadow tipis */
+.card {
+    border: 1px solid #eef0f3;
+}
+
+/* ============================================================
+   FIX: Form input (text, textarea, select) supaya kelihatan
+   jelas -- border bawaan Metronic terlalu tipis/terang, jadi
+   menyatu dengan card putih. Berlaku ke semua form di semua
+   menu (termasuk input di dalam tabel, misal item builder
+   Check Sheet).
+   ============================================================ */
+.form-control,
+.form-select,
+textarea.form-control {
+    background-color: #1e3a5f26;
+    border: 1px solid #ced4da; /* gray-400 Bootstrap, jauh lebih kelihatan dari default tema */
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 0.15rem rgba(99, 102, 241, 0.15);
+}
+
+/* Kalau ada input pakai varian "solid" Metronic (class form-control-solid),
+   background-nya beda tipis dari putih -- pastikan tetap ada border jelas juga */
+.form-control.form-control-solid,
+.form-select.form-control-solid {
+    background-color: #f5f8fa;
+    border: 1px solid #ced4da;
+}
+
+/* Placeholder sering terlalu terang di tema ini -- pertegas sedikit */
+.form-control::placeholder {
+    color: #99a1b7;
+    opacity: 1;
+}
+
+/* Input kecil di dalam tabel (misal item builder Check Sheet) butuh
+   penegasan ekstra karena border tabel & border input gampang menyatu */
+.table input.form-control,
+.table select.form-select,
+.table textarea.form-control {
+    border-color: #adb5bd;
+    background-color: #1e3a5f26;
+}

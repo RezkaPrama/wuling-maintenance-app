@@ -12,9 +12,10 @@ import {
 import PageToolbar from '../../components/PageToolbar';
 
 const CYCLE_OPTIONS = [
+    { value: '1M', label: '1 Bulan' },
+    { value: '3M', label: '3 Bulan' },
     { value: '6M', label: '6 Bulan' },
     { value: '1Y', label: '1 Tahun' },
-    { value: '2Y', label: '2 Tahun' },
 ];
 
 let rowKeySeq = 0;
@@ -34,22 +35,22 @@ export default function CheckSheetFormPage() {
     const dispatch = useDispatch();
     const navigate = useNavigate();
 
-    const { equipment_list, pm_types, etm_groups, current_defaults } = useSelector(
+    const { pm_types, machine_categories, current_defaults } = useSelector(
         (s) => s.checksheet.formOptions
     );
     const detail = useSelector((s) => s.checksheet.detail);
     const mutation = useSelector((s) => s.checksheet.mutation);
 
     const [form, setForm] = useState({
-        equipment_id: '',
         template_name: '',
         doc_number: '',
         pm_cycle: '',
-        default_for_etm_group: '',
+        default_for_etm_group: '', // isinya machine_category — WAJIB diisi, ini sekarang penentu cakupan template
     });
     const [items, setItems] = useState([newRow(), newRow(), newRow()]);
     const [rowErrors, setRowErrors] = useState({}); // { [rowKey]: 'pm_types' } dst
     const lastFocusedSubEqKey = useRef(null);
+    const categorySelectRef = useRef(null); // ref buat elemen <select> yang di-select2-kan
 
     useEffect(() => {
         dispatch(fetchTemplateFormData());
@@ -62,7 +63,6 @@ export default function CheckSheetFormPage() {
         if (isEdit && detail.data) {
             const t = detail.data.template;
             setForm({
-                equipment_id: t.equipment_id,
                 template_name: t.template_name,
                 doc_number: t.doc_number,
                 pm_cycle: t.pm_cycle,
@@ -80,6 +80,49 @@ export default function CheckSheetFormPage() {
             if (loadedItems.length > 0) setItems(loadedItems);
         }
     }, [detail.data]);
+
+    // ── Init Select2 untuk Kategori Mesin ───────────────────────────
+    // Select2 itu plugin jQuery (bukan React), jadi HARUS di-init/destroy
+    // manual lewat useEffect + ref — nggak bisa cuma pakai onChange biasa.
+    // Reinit tiap kali `machine_categories` berubah, karena optionnya
+    // masih kosong saat render pertama (sebelum fetchTemplateFormData
+    // selesai), dan Select2 nggak otomatis pick up <option> baru yang
+    // ditambahin belakangan tanpa di-refresh.
+    useEffect(() => {
+        const $ = window.jQuery || window.$;
+        if (!$ || !$.fn || !$.fn.select2 || !categorySelectRef.current) return;
+
+        const $select = $(categorySelectRef.current);
+        $select.select2({
+            placeholder: '— Pilih Kategori Mesin —',
+            allowClear: true,
+            width: '100%',
+        });
+
+        // Selection dari user -> update state React
+        $select.on('change', function () {
+            handleFormChange('default_for_etm_group', this.value);
+        });
+
+        return () => {
+            $select.off('change');
+            if ($select.data('select2')) $select.select2('destroy');
+        };
+    }, [machine_categories]);
+
+    // ── Sync value ke Select2 kalau berubah dari luar (misal prefill Edit) ──
+    // Select2 "menyembunyikan" <select> asli dan bikin tampilan sendiri,
+    // jadi begitu React ubah value <select> secara programatik (prefill),
+    // Select2 nggak otomatis ikut update tampilannya tanpa dipanggil manual.
+    useEffect(() => {
+        const $ = window.jQuery || window.$;
+        if (!$ || !$.fn || !$.fn.select2 || !categorySelectRef.current) return;
+
+        const $select = $(categorySelectRef.current);
+        if ($select.data('select2') && $select.val() !== form.default_for_etm_group) {
+            $select.val(form.default_for_etm_group).trigger('change');
+        }
+    }, [form.default_for_etm_group]);
 
     const handleFormChange = (field, value) => setForm((f) => ({ ...f, [field]: value }));
 
@@ -148,8 +191,10 @@ export default function CheckSheetFormPage() {
         }
 
         const payload = {
-            ...form,
-            default_for_etm_group: form.default_for_etm_group || null,
+            template_name: form.template_name,
+            doc_number: form.doc_number,
+            pm_cycle: form.pm_cycle,
+            default_for_etm_group: form.default_for_etm_group,
             items: items.map((it) => ({
                 sub_equipment: it.sub_equipment,
                 check_item: it.check_item,
@@ -206,32 +251,13 @@ export default function CheckSheetFormPage() {
 
                     {/* ── KIRI: Info Template ── */}
                     <div className="col-lg-4">
-                        <div className="card card-flush border-0 shadow-sm mb-5">
+                        <div className="card card-flush border-0 shadow-lg mb-5">
                             <div className="card-header border-0 pt-6">
                                 <h3 className="card-title fw-bold fs-5">
                                     <i className="bi bi-info-circle me-2 text-primary"></i>Info Template
                                 </h3>
                             </div>
                             <div className="card-body pt-2">
-
-                                <div className="mb-4">
-                                    <label className="form-label fw-semibold required">Equipment</label>
-                                    <select
-                                        className="form-select"
-                                        value={form.equipment_id}
-                                        onChange={(e) => handleFormChange('equipment_id', e.target.value)}
-                                        required
-                                    >
-                                        <option value="">— Pilih Equipment —</option>
-                                        {equipment_list.map((eq) => (
-                                            <option key={eq.id} value={eq.id}>
-                                                [{eq.equipment_code}] {eq.equipment_name}
-                                                {eq.etm_group ? ` — ${eq.etm_group}` : ''}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <FieldError message={fieldError('equipment_id')} />
-                                </div>
 
                                 <div className="mb-4">
                                     <label className="form-label fw-semibold required">Nama Template</label>
@@ -261,16 +287,16 @@ export default function CheckSheetFormPage() {
 
                                 <div className="mb-4">
                                     <label className="form-label fw-semibold required">PM Cycle</label>
-                                    <div className="d-flex gap-2">
+                                    <div className="d-flex gap-2 flex-wrap">
                                         {CYCLE_OPTIONS.map((c) => (
                                             <label
                                                 key={c.value}
-                                                className={`flex-grow-1 text-center py-2 rounded border fw-semibold fs-7 ${
+                                                className={`text-center py-2 rounded border fw-semibold fs-7 ${
                                                     form.pm_cycle === c.value
                                                         ? 'bg-primary text-white border-primary'
                                                         : 'bg-light border text-muted'
                                                 }`}
-                                                style={{ cursor: 'pointer' }}
+                                                style={{ cursor: 'pointer', flex: '1 1 calc(50% - 4px)', minWidth: 90 }}
                                             >
                                                 <input
                                                     type="radio"
@@ -287,25 +313,27 @@ export default function CheckSheetFormPage() {
                                     <FieldError message={fieldError('pm_cycle')} />
                                 </div>
 
-                                {/* ── Jadikan Default untuk Kategori ── */}
+                                {/* ── Kategori Mesin — sekarang WAJIB, menggantikan pilih Equipment satu-satu ── */}
                                 <div className="mb-4 border-top pt-4">
-                                    <label className="form-label fw-semibold">
-                                        <i className="bi bi-star me-1 text-warning"></i>Jadikan Default untuk Kategori
+                                    <label className="form-label fw-semibold required">
+                                        <i className="bi bi-diagram-3 me-1 text-primary"></i>Kategori Mesin
                                     </label>
                                     <select
+                                        ref={categorySelectRef}
                                         className="form-select"
-                                        value={form.default_for_etm_group}
-                                        onChange={(e) => handleFormChange('default_for_etm_group', e.target.value)}
+                                        defaultValue={form.default_for_etm_group}
+                                        required
                                     >
-                                        <option value="">— Tidak dijadikan default —</option>
-                                        {etm_groups.map((g) => (
+                                        <option value="">— Pilih Kategori Mesin —</option>
+                                        {machine_categories.map((g) => (
                                             <option key={g} value={g}>{g}</option>
                                         ))}
                                     </select>
                                     <div className="text-muted fs-8 mt-1">
-                                        Template default dipakai otomatis untuk equipment kategori ini kalau equipment-nya
-                                        belum punya template sendiri.
+                                        Template ini otomatis berlaku untuk SEMUA equipment dengan kategori mesin ini —
+                                        tidak perlu pilih equipment satu per satu.
                                     </div>
+                                    <FieldError message={fieldError('default_for_etm_group')} />
                                     {conflictingDefault && (
                                         <div className="alert alert-warning fs-8 py-2 px-3 mt-2 mb-0">
                                             <i className="bi bi-exclamation-triangle me-1"></i>
@@ -317,7 +345,7 @@ export default function CheckSheetFormPage() {
 
                                 {/* PM Types Legend */}
                                 <div className="border-top pt-4 mt-2">
-                                    <div className="text-muted fs-8 fw-semibold mb-2">Kode Warna PM Type:</div>
+                                    <div className="text-muted fs-8 fw-semibold mb-2">Legenda Warna PM Type:</div>
                                     <div className="d-flex flex-wrap gap-2">
                                         {pm_types.map((pt) => (
                                             <span
@@ -329,7 +357,7 @@ export default function CheckSheetFormPage() {
                                                     border: `1px solid ${pt.color_code || '#6c757d'}50`,
                                                 }}
                                             >
-                                                {pt.code}
+                                                {pt.name}
                                             </span>
                                         ))}
                                     </div>
@@ -337,7 +365,7 @@ export default function CheckSheetFormPage() {
                             </div>
                         </div>
 
-                        <div className="card card-flush border-0 shadow-sm bg-light-primary">
+                        <div className="card card-flush border-0 shadow-lg bg-light-primary">
                             <div className="card-body py-5 px-5">
                                 <div className="fw-bold text-gray-800 mb-2 fs-7">
                                     <i className="bi bi-lightbulb text-primary me-2"></i>Tips Pengisian
@@ -354,7 +382,7 @@ export default function CheckSheetFormPage() {
 
                     {/* ── KANAN: Item Builder ── */}
                     <div className="col-lg-8">
-                        <div className="card card-flush border-0 shadow-sm">
+                        <div className="card card-flush border-0 shadow-lg">
                             <div className="card-header border-0 pt-6 flex-wrap gap-3">
                                 <h3 className="card-title fw-bold fs-5">
                                     <i className="bi bi-list-check me-2 text-primary"></i>
@@ -402,7 +430,7 @@ export default function CheckSheetFormPage() {
                                                 <th style={{ width: 110 }}>Sub Equip.</th>
                                                 <th style={{ minWidth: 160 }}>Check Item *</th>
                                                 <th style={{ minWidth: 160 }}>Maintenance Standard *</th>
-                                                <th style={{ minWidth: 200 }}>PM Type *</th>
+                                                <th style={{ minWidth: 260 }}>PM Type *</th>
                                                 <th style={{ width: 64 }}>MP</th>
                                                 <th style={{ width: 64 }}>Time</th>
                                                 <th style={{ width: 36 }}></th>
@@ -460,7 +488,7 @@ export default function CheckSheetFormPage() {
                                                                 return (
                                                                     <label
                                                                         key={pt.id}
-                                                                        className="badge fs-9"
+                                                                        className="badge fs-8"
                                                                         style={{
                                                                             cursor: 'pointer',
                                                                             border: `1.5px solid ${checked ? color : '#e4e6ef'}`,
@@ -474,7 +502,7 @@ export default function CheckSheetFormPage() {
                                                                             checked={checked}
                                                                             onChange={() => togglePmType(it.key, pt.code)}
                                                                         />
-                                                                        {pt.code}
+                                                                        {pt.name}
                                                                     </label>
                                                                 );
                                                             })}
@@ -487,6 +515,7 @@ export default function CheckSheetFormPage() {
                                                         <input
                                                             type="number"
                                                             className="form-control form-control-sm text-center"
+                                                            style={{ width: 124 }}
                                                             min={1} max={99}
                                                             value={it.man_power}
                                                             onChange={(e) => handleItemChange(it.key, 'man_power', e.target.value)}
@@ -496,6 +525,7 @@ export default function CheckSheetFormPage() {
                                                         <input
                                                             type="number"
                                                             className="form-control form-control-sm text-center"
+                                                            style={{ width: 124 }}
                                                             min={1} max={9999}
                                                             placeholder="mnt"
                                                             value={it.time_minutes}

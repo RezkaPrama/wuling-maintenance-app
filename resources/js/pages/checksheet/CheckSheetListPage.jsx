@@ -95,7 +95,7 @@ export default function CheckSheetListPage() {
                 {[
                     { label: 'Total Template', value: stats?.total ?? 0, icon: 'bi-file-earmark-check', color: 'primary' },
                     { label: 'Aktif', value: stats?.active ?? 0, icon: 'bi-toggle-on', color: 'success' },
-                    { label: 'Cycle 6 Bulan', value: stats?.cycle_6m ?? 0, icon: 'bi-calendar2-half', color: 'info' },
+                    { label: 'Cycle 6 Bulan', value: stats?.cycle_6m ?? 0, icon: 'bi-calendar2-range', color: 'info' },
                     { label: 'Cycle 1 Tahun', value: stats?.cycle_1y ?? 0, icon: 'bi-calendar2', color: 'warning' },
                     { label: 'Cycle 2 Tahun', value: stats?.cycle_2y ?? 0, icon: 'bi-calendar2-range', color: 'danger' },
                 ].map((sc) => (
@@ -218,11 +218,19 @@ export default function CheckSheetListPage() {
                                                     )}
                                                 </td>
                                                 <td>
-                                                    <div className="fw-semibold text-gray-700">{tpl.equipment_name}</div>
-                                                    <div className="text-muted fs-8">
-                                                        {tpl.equipment_code}
-                                                        {tpl.etm_group && <> · {tpl.etm_group}</>}
-                                                    </div>
+                                                    {tpl.equipment_name ? (
+                                                        <>
+                                                            <div className="fw-semibold text-gray-700">{tpl.equipment_name}</div>
+                                                            <div className="text-muted fs-8">
+                                                                {tpl.equipment_code}
+                                                                {tpl.etm_group && <> · {tpl.etm_group}</>}
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <span className="text-muted fs-7 fst-italic">
+                                                            Semua mesin kategori "{tpl.default_for_etm_group}"
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td>
                                                     <span className={`badge badge-light-${CYCLE_COLOR[tpl.pm_cycle] || 'secondary'} fw-semibold px-3`}>

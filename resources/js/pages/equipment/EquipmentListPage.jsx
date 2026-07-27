@@ -127,7 +127,7 @@ function CategoryCardsView({ filterGroup, onSelectCategory }) {
                                 <button
                                     type="button"
                                     onClick={() => onSelectCategory(cat.machine_category)}
-                                    className="category-unit-card card card-flush w-100 h-100 text-start border-0 shadow-sm"
+                                    className="category-unit-card card shadow-lg card-flush w-100 h-100 text-start border-0 shadow-sm"
                                 >
                                     <div className="card-body d-flex flex-column align-items-center text-center py-8">
                                         <div

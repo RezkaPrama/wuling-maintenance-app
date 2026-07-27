@@ -41,6 +41,7 @@ export default function CheckSheetDetailPage() {
     });
     const usedTypes = Object.entries(pmTypeCounts).sort((a, b) => b[1] - a[1]);
     const getPmTypeColor = (code) => pmTypes.find((pt) => pt.code === code)?.color_code || '#6c757d';
+    const getPmTypeName = (code) => pmTypes.find((pt) => pt.code === code)?.name || code;
 
     // ── Grouping preview table berdasarkan perubahan sub_equipment berurutan ──
     const rows = [];
@@ -140,14 +141,25 @@ export default function CheckSheetDetailPage() {
                         </div>
                         <div className="card-body pt-2">
                             <div className="row g-3">
-                                <InfoItem label="Equipment" value={
-                                    <Link to={`/admin/equipment/${template.equipment_id}`} className="text-primary">
-                                        {template.equipment_name}
-                                    </Link>
-                                } />
-                                <InfoItem label="Kode" value={template.equipment_code} />
-                                <InfoItem label="ETM Group" value={template.etm_group || '—'} />
-                                <InfoItem label="Lokasi" value={template.location || '—'} />
+                                {template.equipment_id ? (
+                                    <>
+                                        <InfoItem label="Equipment" value={
+                                            <Link to={`/admin/equipment/${template.equipment_id}`} className="text-primary">
+                                                {template.equipment_name}
+                                            </Link>
+                                        } />
+                                        <InfoItem label="Kode" value={template.equipment_code} />
+                                        <InfoItem label="Lokasi" value={template.location || '—'} />
+                                    </>
+                                ) : (
+                                    <div className="col-12">
+                                        <div className="alert alert-light-primary py-3 px-4 mb-0">
+                                            <i className="bi bi-diagram-3 me-2 text-primary"></i>
+                                            Template ini berlaku untuk <strong>semua equipment</strong> dengan kategori mesin
+                                            <strong> "{template.default_for_etm_group}"</strong>, bukan 1 equipment spesifik.
+                                        </div>
+                                    </div>
+                                )}
                                 <InfoItem label="Doc Number" value={template.doc_number} />
                                 <InfoItem label="PM Cycle" value={<span className="badge badge-light-primary">{template.pm_cycle}</span>} />
                                 <InfoItem label="Status" value={
@@ -212,7 +224,7 @@ export default function CheckSheetDetailPage() {
                                             className="badge fs-9 fw-bold"
                                             style={{ background: `${color}20`, color, border: `1px solid ${color}50` }}
                                         >
-                                            {code}
+                                            {getPmTypeName(code)}
                                         </span>
                                         <div className="d-flex align-items-center gap-2">
                                             <div className="progress" style={{ width: 80, height: 6 }}>
@@ -249,7 +261,7 @@ export default function CheckSheetDetailPage() {
                                             <th className="text-start" style={{ minWidth: 100 }}>Sub Equip.</th>
                                             <th className="text-start" style={{ minWidth: 160 }}>Check Item</th>
                                             <th className="text-start" style={{ minWidth: 160 }}>Maintenance Standard</th>
-                                            <th style={{ minWidth: 180 }}>PM Type</th>
+                                            <th style={{ minWidth: 240 }}>PM Type</th>
                                             <th style={{ width: 60 }}>MP</th>
                                             <th style={{ width: 60 }}>Time</th>
                                         </tr>
@@ -279,7 +291,7 @@ export default function CheckSheetDetailPage() {
                                                                         className="badge fs-9"
                                                                         style={{ background: `${color}20`, color, border: `1px solid ${color}50` }}
                                                                     >
-                                                                        {pt}
+                                                                        {getPmTypeName(pt)}
                                                                     </span>
                                                                 );
                                                             })}

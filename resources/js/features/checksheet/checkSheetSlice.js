@@ -104,7 +104,7 @@ const initialState = {
     formOptions: {
         equipment_list: [],
         pm_types: [],
-        etm_groups: [],
+        machine_categories: [],
         current_defaults: [], // [{ id, template_name, default_for_etm_group }]
         status: 'idle',
     },
@@ -164,7 +164,7 @@ const checkSheetSlice = createSlice({
                 state.formOptions.status = 'succeeded';
                 state.formOptions.equipment_list = action.payload.equipment_list;
                 state.formOptions.pm_types = action.payload.pm_types;
-                state.formOptions.etm_groups = action.payload.etm_groups;
+                state.formOptions.machine_categories = action.payload.machine_categories;
                 state.formOptions.current_defaults = action.payload.current_defaults;
             })
 
@@ -215,6 +215,9 @@ const checkSheetSlice = createSlice({
             .addCase(toggleTemplateActive.fulfilled, (state, action) => {
                 const item = state.list.items.find((t) => t.id === action.payload.id);
                 if (item) item.is_active = action.payload.is_active;
+                if (state.detail.data?.template?.id === action.payload.id) {
+                    state.detail.data.template.is_active = action.payload.is_active;
+                }
             })
 
             // ── DELETE ────────────────────────────────────────────────
