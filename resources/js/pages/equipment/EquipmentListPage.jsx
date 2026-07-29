@@ -127,7 +127,7 @@ function CategoryCardsView({ filterGroup, onSelectCategory }) {
                                 <button
                                     type="button"
                                     onClick={() => onSelectCategory(cat.machine_category)}
-                                    className="category-unit-card card shadow-lg card-flush w-100 h-100 text-start border-0 shadow-sm"
+                                    className="category-unit-card card shadow-lg card-flush w-100 h-100 text-start border-0 "
                                 >
                                     <div className="card-body d-flex flex-column align-items-center text-center py-8">
                                         <div
@@ -240,7 +240,7 @@ function EquipmentTableView({ filterGroup, filterCategory, onBackToCategories })
                 <StatCard label="Jadwal Overdue" value={stats.total_overdue} tone="danger" />
             </div>
 
-            <div className="card">
+            <div className="card shadow-lg mb-6">
                 <div className="card-header align-items-center">
                     <div className="d-flex align-items-center gap-3">
                         <input
@@ -349,7 +349,7 @@ function EquipmentTableView({ filterGroup, filterCategory, onBackToCategories })
 function StatCard({ label, value, tone }) {
     return (
         <div className="col-md-3">
-            <div className={`card card-flush bg-light-${tone}`}>
+            <div className={`card shadow-lg card-flush bg-light-${tone}`}>
                 <div className="card-body py-4">
                     <div className={`fs-2 fw-bold text-${tone}`}>{value}</div>
                     <div className="text-muted fs-7">{label}</div>

@@ -98,7 +98,7 @@ export default function EquipmentFormPage() {
                 menuUtama="Menu Utama"
                 menuItem="Equipment"
             />
-            <div className="card">
+            <div className="card shadow-lg mb-6">
                 <div className="card-header">
                     <h3 className="card-title">{isEdit ? 'Edit Equipment' : 'Tambah Equipment'}</h3>
                 </div>

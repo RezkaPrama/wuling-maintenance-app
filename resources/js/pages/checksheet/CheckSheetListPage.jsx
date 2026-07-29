@@ -118,7 +118,7 @@ export default function CheckSheetListPage() {
             </div>
 
             {/* ── Filter + Table ── */}
-            <div className="card card-flush border-0 shadow-lg">
+            <div className="card card-flush border-0 shadow-lg mb-6">
                 <div className="card-header border-0 pt-6 flex-wrap gap-3">
                     <div className="card-title flex-wrap gap-2">
                         <div className="d-flex gap-2 flex-wrap align-items-center">

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CheckSheetTemplateController;
 use App\Http\Controllers\Api\EquipmentController;
+use App\Http\Controllers\Api\MaintenanceScheduleController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -51,5 +52,16 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
         Route::put('/{id}',          [CheckSheetTemplateController::class, 'update']);
         Route::patch('/{id}/toggle', [CheckSheetTemplateController::class, 'toggleActive']);
         Route::delete('/{id}',       [CheckSheetTemplateController::class, 'destroy']);
+    });
+
+    // TODO: records — sama seperti sebelumnya
+    Route::prefix('schedules')->group(function () {
+        Route::get('/',                    [MaintenanceScheduleController::class, 'index']);
+        Route::get('/form-data',           [MaintenanceScheduleController::class, 'formData']);
+        Route::post('/',                   [MaintenanceScheduleController::class, 'store']);
+        Route::post('/recalculate-status', [MaintenanceScheduleController::class, 'recalculateStatus']);
+        Route::get('/{id}',                [MaintenanceScheduleController::class, 'show']);
+        Route::put('/{id}',                [MaintenanceScheduleController::class, 'update']);
+        Route::delete('/{id}',             [MaintenanceScheduleController::class, 'destroy']);
     });
 });
