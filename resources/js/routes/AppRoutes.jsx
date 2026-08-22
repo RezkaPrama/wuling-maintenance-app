@@ -10,9 +10,6 @@ import CheckSheetFormPage from '../pages/checksheet/CheckSheetFormPage';
 import CheckSheetDetailPage from '../pages/checksheet/CheckSheetDetailPage';
 import ScheduleListPage from '../pages/schedule/ScheduleListPage';
 import ScheduleFormPage from '../pages/schedule/ScheduleFormPage';
-import RecordListPage from '../pages/record/RecordListPage';
-import RecordCreatePage from '../pages/record/RecordCreatePage';
-import RecordWorkPage from '../pages/record/RecordWorkPage';
 
 // ── Guard sederhana: kalau belum ada token Sanctum, lempar balik ke halaman login Blade ──
 // FIX: TIDAK lagi membungkus dengan <AdminLayout> — sidebar/topbar/footer
@@ -72,12 +69,6 @@ export default function AppRoutes() {
 
             <Route path="/admin/schedules/create" element={<RequireAuth><ScheduleFormPage /></RequireAuth>} />
             <Route path="/admin/schedules/:id/edit" element={<RequireAuth><ScheduleFormPage /></RequireAuth>} />
-
-            {/* MAINTENANCE RECORD */}
-            <Route path="/admin/records" element={<RequireAuth><RecordListPage /></RequireAuth>} />
-
-            <Route path="/admin/records/create" element={<RecordCreatePage />} />
-            <Route path="/admin/records/:id/work" element={<RecordWorkPage />} />
 
             {/* Fallback: sekarang landing page-nya Dashboard kategori, bukan langsung Equipment */}
             <Route path="/admin/*" element={<Navigate to="/admin/dashboard" replace />} />

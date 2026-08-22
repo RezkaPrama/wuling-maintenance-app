@@ -3,7 +3,6 @@ import authReducer from '../features/auth/authSlice';
 import equipmentReducer from '../features/equipment/equipmentSlice';
 import checksheetReducer from '../features/checksheet/checkSheetSlice';
 import scheduleReducer from '../features/schedule/scheduleSlice';
-import recordReducer from '../features/record/recordSlice';
 
 const store = configureStore({
     reducer: {
@@ -11,7 +10,6 @@ const store = configureStore({
         equipment: equipmentReducer,
         checksheet: checksheetReducer,
         schedule: scheduleReducer,
-        record: recordReducer,
         // tambahkan reducer modul lain di sini: schedule, record, checkSheetTemplate, dst
     },
 });

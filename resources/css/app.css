@@ -51,8 +51,7 @@ body#kt_body,
 /* #root masih container-fluid dari Blade -- pastikan transparan
    supaya warna abu di atas kelihatan menembus sampai ke belakang card */
 #root.container-fluid {
-    /* background-color: transparent; */
-    background-color: #1e1e2d12;
+    background-color: transparent;
 }
 
 /* Pertegas dikit batas card, tidak cuma andalkan shadow tipis */

@@ -3,537 +3,416 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\CheckSheetItems;
-use App\Models\CheckSheetTemplates;
-use App\Models\Equipment;
-use App\Models\MaintenanceRecordItems;
-use App\Models\MaintenanceRecords;
-use App\Models\MaintenanceSchedules;
-use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Validator;
+use Carbon\Carbon;
 
-class MaintenanceRecordController extends Controller
+class MaintenanceScheduleController extends Controller
 {
-    // Kolom PM Type standar — dipakai FE untuk render checklist dual-layer (plan vs done)
-    protected const PM_COLUMNS = ['Check', 'Lubricate', 'Cleaning', 'Tighten', 'Measure', 'Replace'];
-
     // ============================================================
-    // INDEX — daftar semua maintenance record + filter + stats
+    // INDEX — Daftar jadwal PM + data kalender
     // ============================================================
     public function index(Request $request)
     {
-        $query = MaintenanceRecords::with(['equipment', 'template', 'technician', 'checker', 'validator']);
+        $filterStatus = $request->input('filter_status');
+        $filterCycle  = $request->input('filter_cycle');
+        $filterGroup  = $request->input('filter_group');
+        $filterMonth  = $request->input('filter_month', now()->format('Y-m'));
+        $perPage      = $request->input('per_page', 25);
 
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('record_number', 'LIKE', "%{$search}%")
-                    ->orWhereHas('equipment', function ($eq) use ($search) {
-                        $eq->where('equipment_name', 'LIKE', "%{$search}%")
-                           ->orWhere('equipment_code', 'LIKE', "%{$search}%");
-                    })
-                    ->orWhereHas('technician', function ($t) use ($search) {
-                        $t->where('name', 'LIKE', "%{$search}%");
-                    });
-            });
+        $query = DB::table('maintenance_schedules as ms')
+            ->join('equipment as e', 'ms.equipment_id', '=', 'e.id')
+            ->select(
+                'ms.id', 'ms.equipment_id', 'ms.pm_cycle',
+                'ms.interval_days', 'ms.last_maintenance',
+                'ms.next_maintenance', 'ms.status',
+                'e.equipment_code', 'e.equipment_name',
+                'e.etm_group', 'e.machine_category', 'e.location',
+                'e.status as equipment_status',
+            );
+
+        if ($filterStatus && $filterStatus !== 'all') {
+            $query->where('ms.status', $filterStatus);
+        }
+        if ($filterCycle && $filterCycle !== 'all') {
+            $query->where('ms.pm_cycle', $filterCycle);
+        }
+        if ($filterGroup) {
+            $query->where('e.etm_group', $filterGroup);
         }
 
-        if ($request->filled('filter_status') && $request->filter_status !== 'all') {
-            $query->where('status', $request->filter_status);
-        }
-
-        if ($request->filled('filter_cycle') && $request->filter_cycle !== 'all') {
-            $query->whereHas('template', fn ($t) => $t->where('pm_cycle', $request->filter_cycle));
-        }
-
-        if ($request->filled('filter_month')) {
-            $parts = explode('-', $request->filter_month);
-            if (count($parts) >= 2 && is_numeric($parts[0]) && is_numeric($parts[1])) {
-                [$y, $m] = $parts;
-                $query->whereYear('maintenance_date', $y)->whereMonth('maintenance_date', $m);
-            }
-        }
-
-        $query->orderByRaw("CASE status
-                WHEN 'in_progress' THEN 1
-                WHEN 'completed'   THEN 2
-                WHEN 'validated'   THEN 3
-                WHEN 'rejected'    THEN 4
+        $query->orderByRaw("CASE ms.status
+                WHEN 'overdue'   THEN 1
+                WHEN 'due'       THEN 2
+                WHEN 'pending'   THEN 3
+                WHEN 'completed' THEN 4
                 ELSE 5 END")
-              ->orderBy('maintenance_date', 'desc');
+              ->orderBy('ms.next_maintenance', 'asc');
 
-        $records = $query->paginate($request->input('per_page', 25))
-            ->appends($request->only(['search', 'filter_status', 'filter_cycle', 'filter_month', 'per_page']));
+        $schedules = $query->paginate($perPage)->appends($request->query());
 
-        $records->getCollection()->transform(fn ($r) => [
-            'id' => $r->id,
-            'record_number' => $r->record_number,
-            'maintenance_date' => $r->maintenance_date,
-            'start_time' => optional($r->start_time)->format('H:i'),
-            'end_time' => optional($r->end_time)->format('H:i'),
-            'status' => $r->status,
-            'notes' => $r->notes,
-            'pm_cycle' => $r->template->pm_cycle ?? null,
-            'template_name' => $r->template->template_name ?? null,
-            'equipment_code' => $r->equipment->equipment_code ?? null,
-            'equipment_name' => $r->equipment->equipment_name ?? null,
-            'etm_group' => $r->equipment->etm_group ?? null,
-            'technician_name' => $r->technician->name ?? null,
-            'checker_name' => $r->checker->name ?? null,
-            'validator_name' => $r->validator->name ?? null,
-            'completion_percentage' => $r->completion_percentage,
-        ]);
+        // ── Data kalender bulan yang dipilih ──
+        [$calYear, $calMonth] = explode('-', $filterMonth);
+        $calendarEvents = DB::table('maintenance_schedules as ms')
+            ->join('equipment as e', 'ms.equipment_id', '=', 'e.id')
+            ->select(
+                'ms.id', 'ms.pm_cycle', 'ms.next_maintenance', 'ms.status',
+                'e.equipment_code', 'e.equipment_name', 'e.etm_group',
+            )
+            ->whereYear('ms.next_maintenance', $calYear)
+            ->whereMonth('ms.next_maintenance', $calMonth)
+            ->orderBy('ms.next_maintenance')
+            ->get();
 
-        $stats = DB::table('maintenance_records')
+        $stats = DB::table('maintenance_schedules')
             ->selectRaw("
                 COUNT(*) as total,
-                SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
-                SUM(CASE WHEN status = 'completed'   THEN 1 ELSE 0 END) as completed,
-                SUM(CASE WHEN status = 'validated'   THEN 1 ELSE 0 END) as validated,
-                SUM(CASE WHEN status = 'rejected'    THEN 1 ELSE 0 END) as rejected
-            ")
-            ->first();
+                SUM(CASE WHEN status = 'pending'   THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN status = 'due'       THEN 1 ELSE 0 END) as due,
+                SUM(CASE WHEN status = 'overdue'   THEN 1 ELSE 0 END) as overdue,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
+            ")->first();
 
-        return response()->json(['records' => $records, 'stats' => $stats]);
-    }
+        $scheduleThisMonth = DB::table('maintenance_schedules')
+            ->whereMonth('next_maintenance', now()->month)
+            ->whereYear('next_maintenance', now()->year)
+            ->count();
 
-    // ============================================================
-    // CREATE-DATA — equipment aktif + jadwal due/overdue (dropdown form Create)
-    // ============================================================
-    public function createData()
-    {
-        $equipmentList = Equipment::where('status', 'active')
-            ->orderBy('equipment_name')
-            ->get(['id', 'equipment_code', 'equipment_name', 'etm_group']);
-
-        $dueSchedules = MaintenanceSchedules::with('equipment')
-            ->whereIn('status', ['due', 'overdue'])
-            ->get()
-            ->map(fn ($s) => [
-                'id' => $s->id,
-                'pm_cycle' => $s->pm_cycle,
-                'next_maintenance' => $s->next_maintenance,
-                'status' => $s->status,
-                'equipment_id' => $s->equipment_id,
-                'equipment_code' => $s->equipment->equipment_code ?? null,
-                'equipment_name' => $s->equipment->equipment_name ?? null,
-            ])
-            ->sortBy(fn ($s) => $s['status'] === 'overdue' ? 0 : 1)
-            ->values();
+        $etmGroups = DB::table('equipment')
+            ->whereNotNull('etm_group')
+            ->distinct()->orderBy('etm_group')
+            ->pluck('etm_group');
 
         return response()->json([
-            'equipment_list' => $equipmentList,
-            'due_schedules' => $dueSchedules,
+            'schedules' => $schedules,
+            'calendar' => [
+                'year'   => (int) $calYear,
+                'month'  => (int) $calMonth,
+                'events' => $calendarEvents,
+            ],
+            'stats' => $stats,
+            'schedule_this_month' => $scheduleThisMonth,
+            'etm_groups' => $etmGroups,
+            'filters' => [
+                'filter_status' => $filterStatus,
+                'filter_cycle'  => $filterCycle,
+                'filter_group'  => $filterGroup,
+                'filter_month'  => $filterMonth,
+            ],
         ]);
     }
 
     // ============================================================
-    // TEMPLATES UNTUK 1 SCHEDULE — dengan fallback ke default_for_etm_group
+    // FORM DATA — dropdown equipment + info jadwal existing (buat cek duplikasi)
     // ============================================================
-    public function templatesForSchedule($scheduleId)
+    public function formData()
     {
-        $schedule = MaintenanceSchedules::with('equipment')->find($scheduleId);
+        $equipmentList = DB::table('equipment')
+            ->where('status', 'active')
+            ->orderBy('equipment_name')
+            ->get(['id', 'equipment_code', 'equipment_name', 'etm_group', 'machine_category', 'location']);
+
+        // Jadwal yang masih aktif (non-completed) per equipment — dipakai
+        // frontend buat kasih warning "equipment ini udah punya jadwal
+        // cycle X" sebelum submit, bukan cuma nunggu error dari backend.
+        $existingSchedules = DB::table('maintenance_schedules')
+            ->whereNotIn('status', ['completed'])
+            ->get(['id', 'equipment_id', 'pm_cycle', 'status']);
+
+        return response()->json([
+            'equipment_list'     => $equipmentList,
+            'existing_schedules' => $existingSchedules,
+        ]);
+    }
+
+    // ============================================================
+    // STORE — Simpan jadwal baru (dengan auto-hitung next_maintenance)
+    // ============================================================
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'equipment_id'     => 'required|exists:equipment,id',
+            'pm_cycle'         => 'required|in:1M,3M,6M,1Y',
+            'last_maintenance' => 'nullable|date',
+            'next_maintenance' => 'nullable|date',
+        ]);
+
+        // Salah satu WAJIB diisi: last_maintenance (buat auto-hitung) ATAU
+        // next_maintenance (input manual, buat equipment yang belum pernah
+        // di-maintain / data historisnya tidak diketahui).
+        if (empty($validated['last_maintenance']) && empty($validated['next_maintenance'])) {
+            return response()->json([
+                'message' => 'Isi salah satu: Tanggal Terakhir Maintenance atau Jadwal Berikutnya.',
+                'errors'  => ['last_maintenance' => ['Wajib diisi salah satu dengan Jadwal Berikutnya.']],
+            ], 422);
+        }
+
+        // Cek duplikasi: 1 equipment + 1 pm_cycle yang masih aktif (non-completed)
+        $duplicate = DB::table('maintenance_schedules')
+            ->where('equipment_id', $validated['equipment_id'])
+            ->where('pm_cycle', $validated['pm_cycle'])
+            ->whereNotIn('status', ['completed'])
+            ->exists();
+
+        if ($duplicate) {
+            $equipment = DB::table('equipment')->find($validated['equipment_id']);
+            return response()->json([
+                'message' => "Equipment [{$equipment->equipment_name}] sudah memiliki jadwal PM {$validated['pm_cycle']} yang aktif.",
+                'errors'  => ['pm_cycle' => ["Equipment ini sudah punya jadwal {$validated['pm_cycle']} aktif."]],
+            ], 422);
+        }
+
+        // ── Auto-hitung next_maintenance kalau last_maintenance diisi ──
+        // Ini prioritas utama: last_maintenance + pm_cycle SELALU jadi
+        // sumber kebenaran next_maintenance kalau last_maintenance ada,
+        // supaya konsisten (bukan campur manual+otomatis yang gampang beda).
+        if (!empty($validated['last_maintenance'])) {
+            $nextDate = $this->calculateNextMaintenance(
+                Carbon::parse($validated['last_maintenance']),
+                $validated['pm_cycle']
+            );
+        } else {
+            $nextDate = Carbon::parse($validated['next_maintenance']);
+        }
+
+        $status = $this->resolveStatus($nextDate);
+
+        DB::table('maintenance_schedules')->insert([
+            'equipment_id'     => $validated['equipment_id'],
+            'pm_cycle'         => $validated['pm_cycle'],
+            'interval_days'    => null, // sudah tidak dipakai buat hitung — next_maintenance dihitung langsung dari tanggal kalender (bulan/tahun), bukan estimasi jumlah hari
+            'interval_hours'   => null,
+            'last_maintenance' => $validated['last_maintenance'] ?? null,
+            'next_maintenance' => $nextDate->format('Y-m-d'),
+            'status'           => $status,
+            'created_at'       => now(),
+            'updated_at'       => now(),
+        ]);
+
+        $equipment = DB::table('equipment')->find($validated['equipment_id']);
+
+        return response()->json([
+            'message' => "Jadwal PM {$validated['pm_cycle']} untuk [{$equipment->equipment_name}] berhasil ditambahkan.",
+            'next_maintenance' => $nextDate->format('Y-m-d'),
+        ], 201);
+    }
+
+    // ============================================================
+    // SHOW — Detail jadwal + riwayat record + template yang cocok
+    // ============================================================
+    public function show($id)
+    {
+        $schedule = DB::table('maintenance_schedules as ms')
+            ->join('equipment as e', 'ms.equipment_id', '=', 'e.id')
+            ->select(
+                'ms.*',
+                'e.equipment_code', 'e.equipment_name',
+                'e.etm_group', 'e.machine_category', 'e.location',
+                'e.status as equipment_status',
+                'e.specifications',
+            )
+            ->where('ms.id', $id)
+            ->first();
+
         if (!$schedule) {
             return response()->json(['message' => 'Jadwal tidak ditemukan.'], 404);
         }
 
-        $etmGroup = $schedule->equipment->etm_group ?? null;
+        $records = DB::table('maintenance_records as mr')
+            ->join('users as tech', 'mr.technician_id', '=', 'tech.id')
+            ->leftJoin('users as checker', 'mr.checker_id', '=', 'checker.id')
+            ->leftJoin('check_sheet_templates as cst', 'mr.template_id', '=', 'cst.id')
+            ->select(
+                'mr.id', 'mr.record_number', 'mr.maintenance_date',
+                'mr.start_time', 'mr.end_time', 'mr.status',
+                'cst.pm_cycle', 'cst.template_name',
+                'tech.name    as technician_name',
+                'checker.name as checker_name',
+            )
+            ->where('mr.schedule_id', $id)
+            ->orderBy('mr.maintenance_date', 'desc')
+            ->get();
 
-        $templates = CheckSheetTemplates::where('pm_cycle', $schedule->pm_cycle)
+        // Template yang cocok: pm_cycle sama, DAN (equipment_id sama PERSIS
+        // ATAU template default untuk machine_category equipment ini) —
+        // logic yang sama dipakai nanti di Maintenance Record buat resolve
+        // template otomatis.
+        $templates = DB::table('check_sheet_templates')
+            ->where('pm_cycle', $schedule->pm_cycle)
             ->where('is_active', 1)
-            ->where(function ($q) use ($schedule, $etmGroup) {
-                $q->where('equipment_id', $schedule->equipment_id);
-                if ($etmGroup) {
-                    $q->orWhere(function ($q2) use ($etmGroup) {
-                        $q2->whereNull('equipment_id')->where('default_for_etm_group', $etmGroup);
-                    });
-                }
+            ->where(function ($q) use ($schedule) {
+                $q->where('equipment_id', $schedule->equipment_id)
+                  ->orWhere('default_for_etm_group', $schedule->machine_category);
             })
-            ->withCount(['checkSheetItems as active_items_count' => fn ($q) => $q->where('is_active', 1)])
-            ->orderByRaw('equipment_id IS NULL') // template spesifik equipment diutamakan
-            ->get(['id', 'template_name', 'doc_number', 'pm_cycle', 'equipment_id']);
+            ->get();
 
         return response()->json([
-            'schedule' => [
-                'id' => $schedule->id,
-                'pm_cycle' => $schedule->pm_cycle,
-                'equipment_id' => $schedule->equipment_id,
-                'equipment_code' => $schedule->equipment->equipment_code ?? null,
-                'equipment_name' => $schedule->equipment->equipment_name ?? null,
-                'etm_group' => $etmGroup,
-                'location' => $schedule->equipment->location ?? null,
-            ],
+            'schedule'  => $schedule,
+            'records'   => $records,
             'templates' => $templates,
         ]);
     }
 
     // ============================================================
-    // STORE — buat record baru + copy check_sheet_items jadi record_items
-    // Retry-safe untuk race condition record_number (pola sama seperti
-    // fix no_bayar di modul lain).
+    // UPDATE — Simpan perubahan jadwal (auto-hitung ulang kalau perlu)
     // ============================================================
-    public function store(Request $request)
+    public function update(Request $request, $id)
     {
-        $validator = Validator::make($request->all(), [
-            'schedule_id' => 'required|exists:maintenance_schedules,id',
-            'template_id' => 'required|exists:check_sheet_templates,id',
-            'maintenance_date' => 'required|date',
-            'start_time' => 'required',
-            'notes' => 'nullable|string|max:1000',
+        $schedule = DB::table('maintenance_schedules')->where('id', $id)->first();
+
+        if (!$schedule) {
+            return response()->json(['message' => 'Jadwal tidak ditemukan.'], 404);
+        }
+
+        $validated = $request->validate([
+            'pm_cycle'         => 'required|in:1M,3M,6M,1Y',
+            'last_maintenance' => 'nullable|date',
+            'next_maintenance' => 'nullable|date',
+            'status'           => 'required|in:pending,due,overdue,completed',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['message' => 'Data tidak valid.', 'errors' => $validator->errors()], 422);
+        if (empty($validated['last_maintenance']) && empty($validated['next_maintenance'])) {
+            return response()->json([
+                'message' => 'Isi salah satu: Tanggal Terakhir Maintenance atau Jadwal Berikutnya.',
+                'errors'  => ['last_maintenance' => ['Wajib diisi salah satu dengan Jadwal Berikutnya.']],
+            ], 422);
         }
 
-        $schedule = MaintenanceSchedules::find($request->schedule_id);
-        $checkItems = CheckSheetItems::where('template_id', $request->template_id)
-            ->where('is_active', 1)
-            ->orderBy('item_number')
-            ->get();
+        // Cek duplikasi hanya kalau pm_cycle berubah
+        if ($validated['pm_cycle'] !== $schedule->pm_cycle) {
+            $duplicate = DB::table('maintenance_schedules')
+                ->where('equipment_id', $schedule->equipment_id)
+                ->where('pm_cycle', $validated['pm_cycle'])
+                ->where('id', '!=', $id)
+                ->whereNotIn('status', ['completed'])
+                ->exists();
 
-        if ($checkItems->isEmpty()) {
-            return response()->json(['message' => 'Template ini belum memiliki item check sheet.'], 422);
-        }
-
-        $record = null;
-        $attempts = 0;
-
-        while (!$record && $attempts < 5) {
-            $attempts++;
-            try {
-                $record = DB::transaction(function () use ($request, $schedule, $checkItems) {
-                    $rec = MaintenanceRecords::create([
-                        'equipment_id' => $schedule->equipment_id,
-                        'schedule_id' => $request->schedule_id,
-                        'template_id' => $request->template_id,
-                        'technician_id' => Auth::id(),
-                        'maintenance_date' => $request->maintenance_date,
-                        'start_time' => $request->start_time,
-                        'status' => 'in_progress',
-                        'notes' => $request->notes,
-                    ]);
-
-                    $itemsToInsert = $checkItems->map(fn ($item) => [
-                        'maintenance_record_id' => $rec->id,
-                        'check_item_id' => $item->id,
-                        'status' => 'pending',
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ])->toArray();
-
-                    MaintenanceRecordItems::insert($itemsToInsert);
-
-                    return $rec;
-                });
-            } catch (QueryException $e) {
-                // Kode 23000 = duplicate entry (unique constraint record_number) -- retry
-                if ($e->getCode() == 23000 && $attempts < 5) {
-                    $record = null;
-                    continue;
-                }
-                throw $e;
+            if ($duplicate) {
+                return response()->json([
+                    'message' => "Equipment ini sudah memiliki jadwal PM {$validated['pm_cycle']} yang aktif.",
+                    'errors'  => ['pm_cycle' => ['Sudah ada jadwal aktif dengan cycle ini.']],
+                ], 422);
             }
         }
 
-        if (!$record) {
-            return response()->json(['message' => 'Gagal membuat record setelah beberapa percobaan, coba lagi.'], 500);
+        // Sama seperti store() — last_maintenance selalu jadi sumber
+        // kebenaran next_maintenance kalau diisi.
+        if (!empty($validated['last_maintenance'])) {
+            $nextDate = $this->calculateNextMaintenance(
+                Carbon::parse($validated['last_maintenance']),
+                $validated['pm_cycle']
+            );
+        } else {
+            $nextDate = Carbon::parse($validated['next_maintenance']);
         }
 
-        return response()->json([
-            'message' => "Record {$record->record_number} berhasil dibuat.",
-            'data' => ['id' => $record->id, 'record_number' => $record->record_number],
-        ], 201);
-    }
+        // Status manual "completed" dihormati apa adanya; selain itu
+        // di-resolve ulang otomatis berdasarkan next_maintenance terbaru.
+        $status = $validated['status'] === 'completed'
+            ? 'completed'
+            : $this->resolveStatus($nextDate);
 
-    // ============================================================
-    // SHOW — detail readonly (untuk checker/validator/riwayat)
-    // ============================================================
-    public function show($id)
-    {
-        $record = $this->loadRecordDetail($id);
-        if (!$record) {
-            return response()->json(['message' => 'Record tidak ditemukan.'], 404);
-        }
-
-        $items = $this->loadItems($id);
+        DB::table('maintenance_schedules')->where('id', $id)->update([
+            'pm_cycle'         => $validated['pm_cycle'],
+            'last_maintenance' => $validated['last_maintenance'] ?? null,
+            'next_maintenance' => $nextDate->format('Y-m-d'),
+            'status'           => $status,
+            'updated_at'       => now(),
+        ]);
 
         return response()->json([
-            'record' => $record,
-            'items' => $items,
-            'progress' => $this->calculateProgress($items),
+            'message'          => 'Jadwal PM berhasil diperbarui.',
+            'next_maintenance' => $nextDate->format('Y-m-d'),
         ]);
     }
 
     // ============================================================
-    // WORK — data untuk halaman pengerjaan checklist (teknisi)
-    // Frontend yang menentukan editable/readonly berdasar record.status
+    // DESTROY — Hapus jadwal (cek ada record atau tidak)
     // ============================================================
-    public function work($id)
+    public function destroy($id)
     {
-        $record = $this->loadRecordDetail($id);
-        if (!$record) {
-            return response()->json(['message' => 'Record tidak ditemukan.'], 404);
-        }
-
-        $items = $this->loadItems($id);
-
-        $response = [
-            'record' => $record,
-            'items' => $items,
-            'progress' => $this->calculateProgress($items),
-            'pm_columns' => self::PM_COLUMNS,
-            'editable' => in_array($record['status'], ['in_progress', 'rejected']),
-        ];
-
-        return response()->json($response);
-    }
-
-    // ============================================================
-    // UPDATE ITEM — simpan hasil 1 item check sheet (auto-save per field)
-    // ============================================================
-    public function updateItem(Request $request, $recordId, $itemId)
-    {
-        $validator = Validator::make($request->all(), [
-            'status' => 'required|in:ok,ng,na,pending',
-            'remarks' => 'nullable|string|max:500',
-            'measurements' => 'nullable|array',
-            'completed_pm_types' => 'nullable|array',
-            'requires_action' => 'nullable|boolean',
-            'action_required' => 'nullable|string|max:500',
-            'actual_man_power' => 'nullable|integer|min:1|max:99',
-            'actual_time_minutes' => 'nullable|integer|min:1|max:9999',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
-        }
-
-        $item = MaintenanceRecordItems::where('id', $itemId)
-            ->where('maintenance_record_id', $recordId)
+        $schedule = DB::table('maintenance_schedules as ms')
+            ->join('equipment as e', 'ms.equipment_id', '=', 'e.id')
+            ->select('ms.*', 'e.equipment_name', 'e.equipment_code')
+            ->where('ms.id', $id)
             ->first();
 
-        if (!$item) {
-            return response()->json(['success' => false, 'message' => 'Item tidak ditemukan.'], 404);
+        if (!$schedule) {
+            return response()->json(['message' => 'Jadwal tidak ditemukan.'], 404);
         }
 
-        // FIX bug lama: completed_pm_types digabung ke dalam kolom
-        // measurements (key 'pm_types_done'), konsisten dengan pola
-        // penyimpanan PM type checkbox di project lain -- supaya tidak
-        // perlu migration kolom baru dan tidak hilang seperti sebelumnya.
-        $measurements = $request->measurements ?? [];
-        $measurements['pm_types_done'] = $request->completed_pm_types ?? [];
-
-        $item->update([
-            'status' => $request->status,
-            'remarks' => $request->remarks,
-            'measurements' => $measurements,
-            'requires_action' => $request->boolean('requires_action'),
-            'action_required' => $request->action_required,
-            'actual_man_power' => $request->actual_man_power,
-            'actual_time_minutes' => $request->actual_time_minutes,
-        ]);
-
-        $items = MaintenanceRecordItems::where('maintenance_record_id', $recordId)->get();
-        $total = $items->count();
-        $done = $items->whereIn('status', ['ok', 'ng', 'na'])->count();
-        $percent = $total > 0 ? round(($done / $total) * 100) : 0;
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Item berhasil disimpan.',
-            'progress' => compact('total', 'done', 'percent'),
-        ]);
-    }
-
-    // ============================================================
-    // UPLOAD PHOTO — foto per item check sheet
-    // ============================================================
-    public function uploadPhoto(Request $request, $recordId, $itemId)
-    {
-        $validator = Validator::make($request->all(), [
-            'photo' => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['success' => false, 'message' => $validator->errors()->first()], 422);
-        }
-
-        $item = MaintenanceRecordItems::where('id', $itemId)
-            ->where('maintenance_record_id', $recordId)
-            ->first();
-
-        if (!$item) {
-            return response()->json(['success' => false, 'message' => 'Item tidak ditemukan.'], 404);
-        }
-
-        $path = $request->file('photo')->store("maintenance/{$recordId}", 'public');
-        $photos = $item->photos ?? [];
-        $photos[] = [
-            'path' => $path,
-            'url' => Storage::url($path),
-            'uploaded_at' => now()->toDateTimeString(),
-        ];
-
-        $item->update(['photos' => $photos]);
-
-        return response()->json([
-            'success' => true,
-            'photo' => ['path' => $path, 'url' => Storage::url($path)],
-        ]);
-    }
-
-    // ============================================================
-    // COMPLETE — teknisi submit record (semua item wajib sudah diisi)
-    // ============================================================
-    public function complete($id)
-    {
-        $record = MaintenanceRecords::find($id);
-        if (!$record || $record->status !== 'in_progress') {
-            return response()->json(['message' => 'Record tidak dapat diselesaikan.'], 422);
-        }
-
-        $pendingCount = MaintenanceRecordItems::where('maintenance_record_id', $id)
-            ->where('status', 'pending')
+        $recordCount = DB::table('maintenance_records')
+            ->where('schedule_id', $id)
             ->count();
 
-        if ($pendingCount > 0) {
-            return response()->json(['message' => "Masih ada {$pendingCount} item yang belum diisi."], 422);
+        if ($recordCount > 0) {
+            return response()->json([
+                'message' => "Jadwal tidak dapat dihapus karena sudah memiliki {$recordCount} maintenance record.",
+            ], 409);
         }
 
-        $record->update([
-            'status' => 'completed',
-            'end_time' => now()->format('H:i:s'),
+        DB::table('maintenance_schedules')->where('id', $id)->delete();
+
+        return response()->json([
+            'message' => "Jadwal PM {$schedule->pm_cycle} untuk [{$schedule->equipment_name}] berhasil dihapus.",
         ]);
-
-        return response()->json(['message' => 'Record berhasil diselesaikan dan menunggu validasi checker.']);
     }
 
     // ============================================================
-    // VALIDATE / REJECT — checker (completed→validated) atau
-    // validator TL (kalau ada tahap ke-2)
+    // RECALCULATE STATUS — Update otomatis status semua jadwal
     // ============================================================
-    public function validasi(Request $request, $id)
+    public function recalculateStatus()
     {
-        $validator = Validator::make($request->all(), [
-            'action' => 'required|in:validate,reject',
-            'notes' => 'nullable|string|max:500',
+        $schedules = DB::table('maintenance_schedules')
+            ->whereNotIn('status', ['completed'])
+            ->get();
+
+        $updated = 0;
+        foreach ($schedules as $s) {
+            $newStatus = $this->resolveStatus(Carbon::parse($s->next_maintenance));
+            if ($newStatus !== $s->status) {
+                DB::table('maintenance_schedules')
+                    ->where('id', $s->id)
+                    ->update(['status' => $newStatus, 'updated_at' => now()]);
+                $updated++;
+            }
+        }
+
+        return response()->json([
+            'message' => "{$updated} jadwal berhasil diperbarui statusnya.",
+            'updated' => $updated,
         ]);
-
-        if ($validator->fails()) {
-            return response()->json(['message' => 'Data tidak valid.', 'errors' => $validator->errors()], 422);
-        }
-
-        $record = MaintenanceRecords::find($id);
-        if (!$record || !in_array($record->status, ['completed', 'validated'])) {
-            return response()->json(['message' => 'Record tidak dapat divalidasi.'], 422);
-        }
-
-        $newStatus = $request->action === 'validate' ? 'validated' : 'rejected';
-        $field = $record->status === 'completed' ? 'checker_id' : 'validator_id';
-
-        $record->update([
-            'status' => $newStatus,
-            $field => Auth::id(),
-            'notes' => $request->notes ?? $record->notes,
-        ]);
-
-        if ($newStatus === 'validated') {
-            MaintenanceSchedules::where('id', $record->schedule_id)->update([
-                'status' => 'completed',
-                'last_maintenance' => $record->maintenance_date,
-            ]);
-        }
-
-        $msg = $newStatus === 'validated'
-            ? 'Record berhasil divalidasi.'
-            : 'Record dikembalikan untuk diperbaiki.';
-
-        return response()->json(['message' => $msg, 'status' => $newStatus]);
     }
 
     // ============================================================
-    // PRIVATE HELPERS
+    // PRIVATE HELPER — Hitung next_maintenance dari last_maintenance + cycle
+    // Pakai penambahan bulan/tahun KALENDER (bukan estimasi jumlah hari
+    // tetap seperti versi Blade lama yang pakai 180/365/730 hari), supaya
+    // akurat — misal 6 bulan dari 31 Jan jadi 31 Jul, bukan +180 hari.
     // ============================================================
-    private function loadRecordDetail($id)
+    private function calculateNextMaintenance(Carbon $lastDate, string $cycle): Carbon
     {
-        $r = MaintenanceRecords::with(['equipment', 'schedule', 'template', 'technician', 'checker', 'validator'])->find($id);
-        if (!$r) return null;
-
-        return [
-            'id' => $r->id,
-            'record_number' => $r->record_number,
-            'maintenance_date' => $r->maintenance_date,
-            'start_time' => optional($r->start_time)->format('H:i'),
-            'end_time' => optional($r->end_time)->format('H:i'),
-            'status' => $r->status,
-            'notes' => $r->notes,
-            'attachments' => $r->attachments,
-            'pm_cycle' => $r->template->pm_cycle ?? null,
-            'template_name' => $r->template->template_name ?? null,
-            'doc_number' => $r->template->doc_number ?? null,
-            'equipment_id' => $r->equipment->id ?? null,
-            'equipment_code' => $r->equipment->equipment_code ?? null,
-            'equipment_name' => $r->equipment->equipment_name ?? null,
-            'etm_group' => $r->equipment->etm_group ?? null,
-            'location' => $r->equipment->location ?? null,
-            'pm_number' => $r->equipment->pm_number ?? null,
-            'tis_number' => $r->equipment->tis_number ?? null,
-            'schedule_id' => $r->schedule->id ?? null,
-            'next_maintenance' => $r->schedule->next_maintenance ?? null,
-            'technician_name' => $r->technician->name ?? null,
-            'technician_email' => $r->technician->email ?? null,
-            'checker_name' => $r->checker->name ?? null,
-            'validator_name' => $r->validator->name ?? null,
-        ];
+        return match ($cycle) {
+            '1M' => $lastDate->copy()->addMonthNoOverflow(),
+            '3M' => $lastDate->copy()->addMonthsNoOverflow(3),
+            '6M' => $lastDate->copy()->addMonthsNoOverflow(6),
+            '1Y' => $lastDate->copy()->addYearNoOverflow(),
+        };
     }
 
-    private function loadItems($recordId)
+    // ============================================================
+    // PRIVATE HELPER — Tentukan status berdasarkan next_maintenance
+    // ============================================================
+    private function resolveStatus(Carbon $nextDate): string
     {
-        return MaintenanceRecordItems::with('checkItem')
-            ->where('maintenance_record_id', $recordId)
-            ->get()
-            ->sortBy('checkItem.item_number')
-            ->map(function ($item) {
-                $measurements = $item->measurements ?? [];
-                return [
-                    'id' => $item->id,
-                    'check_item_id' => $item->check_item_id,
-                    'status' => $item->status,
-                    'remarks' => $item->remarks,
-                    'measurements' => $measurements,
-                    'completed_pm_types' => $measurements['pm_types_done'] ?? [],
-                    'photos' => $item->photos ?? [],
-                    'requires_action' => (bool) $item->requires_action,
-                    'action_required' => $item->action_required,
-                    'actual_man_power' => $item->actual_man_power,
-                    'actual_time_minutes' => $item->actual_time_minutes,
-                    'item_number' => $item->checkItem->item_number ?? null,
-                    'sub_equipment' => $item->checkItem->sub_equipment ?? null,
-                    'check_item' => $item->checkItem->check_item ?? null,
-                    'maintenance_standard' => $item->checkItem->maintenance_standard ?? null,
-                    'pm_types' => $item->checkItem->pm_types ?? [],
-                    'man_power' => $item->checkItem->man_power ?? null,
-                    'time_minutes' => $item->checkItem->time_minutes ?? null,
-                ];
-            })
-            ->values();
-    }
+        $daysLeft = now()->startOfDay()->diffInDays($nextDate->copy()->startOfDay(), false);
 
-    private function calculateProgress($items)
-    {
-        $items = collect($items);
-        $total = $items->count();
-        $done = $items->whereIn('status', ['ok', 'ng', 'na'])->count();
-        $ok = $items->where('status', 'ok')->count();
-        $ng = $items->where('status', 'ng')->count();
-        $pending = $items->where('status', 'pending')->count();
-        $percent = $total > 0 ? round(($done / $total) * 100) : 0;
-
-        return compact('total', 'done', 'ok', 'ng', 'pending', 'percent');
+        if ($daysLeft < 0) {
+            return 'overdue';
+        } elseif ($daysLeft <= 14) {
+            return 'due';
+        } else {
+            return 'pending';
+        }
     }
 }
