@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CheckSheetTemplateController;
 use App\Http\Controllers\Api\EquipmentController;
+use App\Http\Controllers\Api\MaintenanceRecordController;
 use App\Http\Controllers\Api\MaintenanceScheduleController;
 use Illuminate\Support\Facades\Route;
 
@@ -63,5 +64,18 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
         Route::get('/{id}',                [MaintenanceScheduleController::class, 'show']);
         Route::put('/{id}',                [MaintenanceScheduleController::class, 'update']);
         Route::delete('/{id}',             [MaintenanceScheduleController::class, 'destroy']);
+    });
+
+    Route::prefix('records')->group(function () {
+        Route::get('/',                            [MaintenanceRecordController::class, 'index']);
+        Route::get('/create-data',                 [MaintenanceRecordController::class, 'createData']);
+        Route::get('/schedule/{scheduleId}/templates', [MaintenanceRecordController::class, 'templatesForSchedule']);
+        Route::post('/',                           [MaintenanceRecordController::class, 'store']);
+        Route::get('/{id}',                        [MaintenanceRecordController::class, 'show']);
+        Route::get('/{id}/work',                   [MaintenanceRecordController::class, 'work']);
+        Route::put('/{id}/items/{itemId}',         [MaintenanceRecordController::class, 'updateItem']);
+        Route::post('/{id}/items/{itemId}/photo',  [MaintenanceRecordController::class, 'uploadPhoto']);
+        Route::post('/{id}/complete',              [MaintenanceRecordController::class, 'complete']);
+        Route::post('/{id}/validate',              [MaintenanceRecordController::class, 'validasi']);
     });
 });

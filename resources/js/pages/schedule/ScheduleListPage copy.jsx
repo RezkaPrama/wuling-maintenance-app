@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -40,8 +40,6 @@ export default function ScheduleListPage() {
     const { items, pagination, calendar, stats, scheduleThisMonth, etmGroups, filters, status, error } =
         useSelector((s) => s.schedule.list);
     const recalcStatus = useSelector((s) => s.schedule.recalculate.status);
-
-    const [selectedDay, setSelectedDay] = useState(null);
 
     useEffect(() => {
         dispatch(fetchSchedules({ ...filters, page: 1 }));
@@ -166,8 +164,19 @@ export default function ScheduleListPage() {
                 ))}
             </div>
 
+            {/* ── DEBUG SEMENTARA — hapus setelah kalender fix ── */}
+            {/* <div className="alert alert-secondary p-3 mb-4" style={{ fontFamily: 'monospace', fontSize: 11 }}>
+                <div className="fw-bold mb-1">🔧 DEBUG (hapus nanti):</div>
+                <div>status: {JSON.stringify(status)}</div>
+                <div className="text-danger fw-bold">error: {JSON.stringify(error)}</div>
+                <div>filters.filter_month: {JSON.stringify(filters.filter_month)}</div>
+                <div>calendar.year: {JSON.stringify(calendar.year)}, calendar.month: {JSON.stringify(calendar.month)}</div>
+                <div>calendar.events.length: {calendar.events?.length ?? 'undefined'}</div>
+                <div>items.length: {items.length}</div>
+            </div> */}
+
             {/* ── KALENDER ── */}
-            {/* <div className="card card-flush border-0 shadow-lg mb-6">
+            <div className="card card-flush border-0 shadow-lg mb-6">
                 <div className="card-header border-0 pt-6">
                     <div className="card-title">
                         <h3 className="fw-bold fs-4 mb-0">
@@ -221,16 +230,6 @@ export default function ScheduleListPage() {
                                         {week.map((cell, ci) => (
                                             <td
                                                 key={ci}
-                                                onClick={() => {
-                                                    if (cell.day === null || cell.events.length === 0) return;
-                                                    setSelectedDay({
-                                                        dayNumber: cell.day,
-                                                        dateLabel: new Date(calendar.year, calendar.month - 1, cell.day).toLocaleDateString('id-ID', {
-                                                            weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
-                                                        }),
-                                                        events: cell.events,
-                                                    });
-                                                }}
                                                 style={{
                                                     verticalAlign: 'top', minHeight: 90, height: 90, width: '14.28%',
                                                     padding: 4,
@@ -238,57 +237,35 @@ export default function ScheduleListPage() {
                                                     border: cell.isToday ? '1px solid #6366f1' : '1px solid #eff2f5',
                                                     borderRadius: 6, position: 'relative',
                                                     opacity: cell.day === null ? 0.6 : 1,
-                                                    cursor: cell.day !== null && cell.events.length > 0 ? 'pointer' : 'default',
-                                                    transition: 'background .15s',
                                                 }}
-                                                onMouseEnter={(e) => { if (cell.day !== null && cell.events.length > 0) e.currentTarget.style.background = '#f8f9fb'; }}
-                                                onMouseLeave={(e) => { if (cell.day !== null) e.currentTarget.style.background = cell.isToday ? '#f0f3ff' : '#fff'; }}
                                             >
                                                 {cell.day !== null && (
                                                     <>
-                                                        <div className="d-flex align-items-center justify-content-between">
-                                                            <span
-                                                                style={{
-                                                                    fontSize: '0.75rem', fontWeight: 600,
-                                                                    color: cell.isToday ? '#6366f1' : '#5e6278',
-                                                                }}
-                                                            >
-                                                                {cell.day}
-                                                            </span>
-                                                            {cell.events.length > 0 && (
-                                                                <span
-                                                                    className="badge badge-circle"
-                                                                    style={{ background: '#6366f1', color: '#fff', fontSize: 9, minWidth: 16, height: 16, padding: 0 }}
-                                                                >
-                                                                    {cell.events.length}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <div style={{ marginTop: 4 }}>
-                                                            {cell.events.slice(0, 2).map((ev) => (
-                                                                <div
+                                                        <span
+                                                            style={{
+                                                                fontSize: '0.75rem', fontWeight: 600,
+                                                                color: cell.isToday ? '#6366f1' : '#5e6278',
+                                                                position: 'absolute', top: 4, right: 6,
+                                                            }}
+                                                        >
+                                                            {cell.day}
+                                                        </span>
+                                                        <div style={{ marginTop: 18 }}>
+                                                            {cell.events.map((ev) => (
+                                                                <Link
                                                                     key={ev.id}
+                                                                    to={`/admin/schedules/${ev.id}`}
                                                                     title={`${ev.equipment_name} (${ev.pm_cycle})`}
                                                                     style={{
                                                                         ...CAL_EVENT_STYLE[ev.status],
-                                                                        fontSize: '0.65rem', borderRadius: 3, padding: '1px 4px',
+                                                                        fontSize: '0.68rem', borderRadius: 3, padding: '1px 4px',
                                                                         marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden',
-                                                                        textOverflow: 'ellipsis',
+                                                                        textOverflow: 'ellipsis', display: 'block', textDecoration: 'none',
                                                                     }}
                                                                 >
-                                                                    {ev.equipment_code.length > 10 ? `${ev.equipment_code.slice(0, 10)}…` : ev.equipment_code}
-                                                                </div>
+                                                                    {ev.equipment_code.length > 12 ? `${ev.equipment_code.slice(0, 12)}…` : ev.equipment_code}
+                                                                </Link>
                                                             ))}
-                                                            {cell.events.length > 2 && (
-                                                                <div
-                                                                    style={{
-                                                                        fontSize: '0.63rem', color: '#6366f1', fontWeight: 700,
-                                                                        marginTop: 2, cursor: 'pointer',
-                                                                    }}
-                                                                >
-                                                                    +{cell.events.length - 2} lainnya
-                                                                </div>
-                                                            )}
                                                         </div>
                                                     </>
                                                 )}
@@ -300,7 +277,7 @@ export default function ScheduleListPage() {
                         </table>
                     )}
                 </div>
-            </div> */}
+            </div>
 
             {/* ── FILTER + TABEL LIST ── */}
             <div className="card card-flush border-0 shadow-lg mb-6">
@@ -480,80 +457,6 @@ export default function ScheduleListPage() {
                     )}
                 </div>
             </div>
-
-            {/* ── MODAL DETAIL HARI ── */}
-            {selectedDay && (
-                <div
-                    className="modal fade show"
-                    style={{ display: 'block', background: 'rgba(0,0,0,.5)' }}
-                    onClick={(e) => { if (e.target === e.currentTarget) setSelectedDay(null); }}
-                >
-                    <div className="modal-dialog modal-dialog-centered">
-                        <div className="modal-content">
-                            <div className="modal-header">
-                                <div>
-                                    <h5 className="modal-title fw-bold mb-0">
-                                        <i className="bi bi-calendar-check me-2 text-primary" />
-                                        Jadwal PM — {selectedDay.dayNumber} {MONTH_NAMES[calendar.month - 1]} {calendar.year}
-                                    </h5>
-                                    <span className="text-muted fs-8">{selectedDay.dateLabel}</span>
-                                </div>
-                                <button type="button" className="btn-close" onClick={() => setSelectedDay(null)} />
-                            </div>
-                            <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-                                {selectedDay.events.length === 0 ? (
-                                    <div className="text-center text-muted py-6">Tidak ada jadwal PM di tanggal ini.</div>
-                                ) : (
-                                    <div className="d-flex flex-column gap-3">
-                                        {selectedDay.events.map((ev) => {
-                                            const st = STATUS_MAP[ev.status] || { badge: 'badge-light', label: ev.status };
-                                            return (
-                                                <div key={ev.id} className="border rounded p-3 d-flex align-items-center justify-content-between gap-3">
-                                                    <div className="d-flex align-items-center gap-3">
-                                                        <div className="symbol symbol-40px">
-                                                            <div className="symbol-label bg-light-primary">
-                                                                <i className="bi bi-cpu fs-4 text-primary" />
-                                                            </div>
-                                                        </div>
-                                                        <div>
-                                                            <div className="fw-bold text-gray-900 fs-7">{ev.equipment_name}</div>
-                                                            <div className="text-muted fs-8">
-                                                                {ev.equipment_code} · <span className="badge badge-light-primary fs-9 fw-semibold">{ev.pm_cycle}</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="d-flex align-items-center gap-2">
-                                                        <span className={`badge ${st.badge} fw-semibold`}>{st.label}</span>
-                                                        <Link
-                                                            to={`/admin/schedules/${ev.id}`}
-                                                            className="btn btn-sm btn-light-primary"
-                                                            onClick={() => setSelectedDay(null)}
-                                                        >
-                                                            <i className="bi bi-eye" />
-                                                        </Link>
-                                                        {['due', 'overdue'].includes(ev.status) && (
-                                                            <a
-                                                                href={`/admin/records/create?schedule_id=${ev.id}`}
-                                                                className="btn btn-sm btn-danger"
-                                                                title="Mulai PM"
-                                                            >
-                                                                <i className="bi bi-play-fill" />
-                                                            </a>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                            <div className="modal-footer">
-                                <button type="button" className="btn btn-light" onClick={() => setSelectedDay(null)}>Tutup</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
         </>
     );
 }
